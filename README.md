@@ -38,8 +38,11 @@ linux-ssh-diagnostics/
 │   └── utils/
 │       └── logger.py                # Configuração de logging
 ├── tests/
-│   ├── test_ssh_client.py           # Testes do cliente SSH
-│   └── test_analyzer.py             # Testes do analisador
+│   ├── conftest.py                  # Configuração global do pytest
+│   ├── mock_ssh_client.py           # Mock SSH (testes sem servidor real)
+│   ├── test_system_collector.py     # Testes do coletor de dados
+│   ├── test_diagnostic_analyzer.py  # Testes do analisador (regras + severidades)
+│   └── test_report_generator.py     # Testes de geração de relatórios + E2E
 └── reports/                         # Relatórios gerados (criado automaticamente)
 ```
 
@@ -174,16 +177,43 @@ Logging:
 
 ## 🧪 Testes
 
+Os testes usam um **MockSSHClient** que simula respostas Linux reais, permitindo execução completa sem nenhum servidor SSH disponível.
+
 ```bash
 # Rodar todos os testes
 pytest
 
-# Com cobertura
+# Com cobertura de código
 pytest --cov=src --cov-report=term-missing
 
 # Testes específicos
-pytest tests/test_analyzer.py -v
-pytest tests/test_ssh_client.py -v
+pytest tests/test_system_collector.py -v
+pytest tests/test_diagnostic_analyzer.py -v
+pytest tests/test_report_generator.py -v
+
+# Apenas testes E2E (fluxo completo)
+pytest tests/test_report_generator.py::TestEndToEnd -v
+```
+
+### Cenários de mock disponíveis
+
+| Cenário | Descrição |
+|---------|-----------|
+| `"normal"` | Sistema saudável — disco 37%, CPU baixa, temperatura 42°C |
+| `"critical"` | Disco 97%, RAM 98%, CPU sobrecarregada, temperatura 88°C, kernel panic no dmesg |
+| `"warnings"` | Disco 85/82%, swap em uso, serviços nginx/postgresql com falha, múltiplas desconexões USB |
+
+```python
+# Uso direto do mock em scripts (a partir da raiz do projeto)
+import sys
+sys.path.insert(0, "tests")
+
+from mock_ssh_client import MockSSHClient
+from src.collector.system_collector import SystemCollector
+
+mock = MockSSHClient("critical")
+collector = SystemCollector(ssh_client=mock)
+data = collector.collect_all()
 ```
 
 ---
