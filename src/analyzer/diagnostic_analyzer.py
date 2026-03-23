@@ -120,6 +120,7 @@ class DiagnosticAnalyzer:
         r"nfs.*server.*not responding",
         r"dropped packet",
         r"link is down",
+        r"tty.*input overrun",
     ]
 
     def analyze(self, data: SystemData) -> DiagnosticResult:

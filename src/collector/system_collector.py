@@ -190,13 +190,15 @@ class SystemCollector:
         # --- Armazenamento ---
         logger.debug("  Coletando informações de disco")
         data.disk_usage = self._run("df -h", "disk_usage")
-        data.block_devices = self._run("lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,UUID", "block_devices")
+        data.block_devices = self._run(
+            "lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,UUID", "block_devices")
         data.inode_usage = self._run("df -i", "inode_usage")
 
         # --- Temperatura ---
         logger.debug("  Coletando temperatura")
         # sensors: lm-sensors; falha silenciosa se não instalado
-        data.sensors = self._run("sensors 2>/dev/null || echo 'sensors não disponível'", "sensors")
+        data.sensors = self._run(
+            "sensors 2>/dev/null || echo 'sensors não disponível'", "sensors")
 
         if self.is_raspberry_pi:
             # vcgencmd: ferramenta nativa do Raspberry Pi
@@ -230,12 +232,11 @@ class SystemCollector:
 
         # --- Logs e Erros ---
         logger.debug("  Coletando logs e erros")
-        # dmesg -T: timestamps legíveis por evento (data/hora exata)
-        # --level: filtra só erros e avisos (emerg/alert/crit/err/warn) sem limite de linhas
-        # Fallback para kernels antigos sem suporte a --level
+        # dmesg -T: timestamps legíveis por evento (data/hora exata de cada ocorrência)
+        # Sem filtro de nível: link is down, usb disconnect, ttyS overrun são nível notice/info
+        # e seriam perdidos com --level err,warn. O ring buffer do kernel é fixo (~512KB).
         data.dmesg = self._run(
-            "dmesg -T --level emerg,alert,crit,err,warn 2>/dev/null || "
-            "dmesg -T 2>/dev/null | grep -iE '(error|warn|fail|crit|panic|oom kill)'",
+            "dmesg -T 2>/dev/null",
             "dmesg",
         )
         # journalctl -p 3: prioridade 3 = ERR e acima; -xb: boot atual com contexto
@@ -281,7 +282,9 @@ class SystemCollector:
             1 for v in results.values()
             if isinstance(v, CommandResult) and v.success
         )
-        total = sum(1 for v in results.values() if isinstance(v, CommandResult))
-        logger.info(f"Coleta finalizada: {success_count}/{total} comandos bem-sucedidos")
+        total = sum(1 for v in results.values()
+                    if isinstance(v, CommandResult))
+        logger.info(
+            f"Coleta finalizada: {success_count}/{total} comandos bem-sucedidos")
 
         return data
