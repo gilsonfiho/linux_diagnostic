@@ -163,8 +163,8 @@ def _clean_markdown(text: str) -> str:
     text = re.sub(r"`(.+?)`", r"\1", text)
     # Remove links
     text = re.sub(r"\[(.+?)\]\(.+?\)", r"\1", text)
-    # Remove emojis (simplificado — remove caracteres não-ASCII > U+2000)
-    text = text.encode("ascii", "ignore").decode("ascii")
+    # Remove apenas emojis/símbolos acima de U+00FF; preserva latin-1 completo (ã, ç, é, â…)
+    text = re.sub(r"[^\x00-\xFF]", "", text)
     return text.strip()
 
 
