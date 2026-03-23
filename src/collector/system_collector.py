@@ -230,9 +230,13 @@ class SystemCollector:
 
         # --- Logs e Erros ---
         logger.debug("  Coletando logs e erros")
-        # dmesg -T: timestamps legíveis; -W seria para follow, usamos sem
+        # dmesg -T: timestamps legíveis por evento (data/hora exata)
+        # --level: filtra só erros e avisos (emerg/alert/crit/err/warn) sem limite de linhas
+        # Fallback para kernels antigos sem suporte a --level
         data.dmesg = self._run(
-            "dmesg -T 2>/dev/null | tail -200", "dmesg"
+            "dmesg -T --level emerg,alert,crit,err,warn 2>/dev/null || "
+            "dmesg -T 2>/dev/null | grep -iE '(error|warn|fail|crit|panic|oom kill)'",
+            "dmesg",
         )
         # journalctl -p 3: prioridade 3 = ERR e acima; -xb: boot atual com contexto
         data.journalctl_errors = self._run(

@@ -629,7 +629,7 @@ class DiagnosticAnalyzer:
                         f"Execute manualmente: dmesg -T | grep -i '{pattern}'"
                     ),
                     raw_evidence=self._extract_matching_lines(
-                        raw_evidence, pattern)[:800],
+                        raw_evidence, pattern, max_lines=20)[:1500],
                 ))
 
         for pattern in self.WARNING_PATTERNS:
@@ -648,7 +648,7 @@ class DiagnosticAnalyzer:
                         f"Execute: journalctl -p 3 -xb | grep -i '{pattern}'"
                     ),
                     raw_evidence=self._extract_matching_lines(
-                        raw_evidence, pattern)[:600],
+                        raw_evidence, pattern, max_lines=20)[:1500],
                 ))
 
     def _analyze_failed_services(self, data: SystemData, result: DiagnosticResult) -> None:
