@@ -64,7 +64,8 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
             pdf.set_font("Helvetica", "B", 18)
             pdf.set_fill_color(30, 30, 60)
             pdf.set_text_color(255, 255, 255)
-            pdf.cell(0, 12, text[:80], new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
+            pdf.cell(0, 12, text[:80], new_x=XPos.LMARGIN,
+                     new_y=YPos.NEXT, fill=True)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(3)
 
@@ -74,7 +75,8 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
             pdf.set_font("Helvetica", "B", 14)
             pdf.set_fill_color(220, 230, 245)
             pdf.set_text_color(20, 20, 80)
-            pdf.cell(0, 10, text[:80], new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
+            pdf.cell(0, 10, text[:80], new_x=XPos.LMARGIN,
+                     new_y=YPos.NEXT, fill=True)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(2)
 
@@ -90,7 +92,8 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
         elif line.startswith("---"):
             pdf.ln(2)
             pdf.set_draw_color(180, 180, 180)
-            pdf.line(pdf.get_x(), pdf.get_y(), pdf.get_x() + 180, pdf.get_y())
+            pdf.line(pdf.l_margin, pdf.get_y(),
+                     pdf.l_margin + pdf.epw, pdf.get_y())
             pdf.ln(3)
 
         # Bloco de código
@@ -100,15 +103,17 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
             while i < len(lines) and not lines[i].startswith("```"):
                 code_lines.append(lines[i])
                 i += 1
-            # Renderiza bloco de código com fundo cinza
             if code_lines:
                 pdf.set_font("Courier", size=7)
                 pdf.set_fill_color(245, 245, 245)
                 pdf.set_draw_color(200, 200, 200)
-                code_text = "\n".join(code_lines[:40])  # limita linhas
-                pdf.multi_cell(
-                    0, 4, _safe_encode(code_text[:1200]), border=1, fill=True
-                )
+                code_text = "\n".join(code_lines[:40])
+                try:
+                    pdf.multi_cell(
+                        0, 4, _safe_encode(code_text[:1200]), border=1, fill=True
+                    )
+                except Exception:
+                    pass
                 pdf.set_font("Helvetica", size=9)
                 pdf.ln(2)
 
@@ -119,13 +124,17 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
         # Linha de tabela Markdown
         elif line.startswith("|"):
             _render_table_line(pdf, line)
+            pdf.set_x(pdf.l_margin)  # garante reset do X após células de tabela
 
         # Citação blockquote
         elif line.startswith("> "):
             text = _clean_markdown(line[2:])
             pdf.set_font("Helvetica", "I", 9)
             pdf.set_fill_color(240, 248, 255)
-            pdf.multi_cell(0, 6, _safe_encode(text[:300]), fill=True)
+            try:
+                pdf.multi_cell(0, 6, _safe_encode(text[:300]), fill=True)
+            except Exception:
+                pass
             pdf.set_font("Helvetica", size=9)
             pdf.ln(1)
 
@@ -175,11 +184,15 @@ def _render_table_line(pdf, line: str) -> None:
         return
 
     pdf.set_font("Helvetica", size=8)
-    col_width = 180 / max(len(cells), 1)
+    # Usa largura efetiva real do PDF (epw) em vez de 180mm fixo
+    col_width = max(pdf.epw / max(len(cells), 1), 15)  # mínimo 15mm por coluna
     for cell in cells:
         text = _clean_markdown(cell)[:40]
         try:
             pdf.cell(col_width, 6, _safe_encode(text), border=1)
         except Exception:
-            pdf.cell(col_width, 6, "?", border=1)
+            try:
+                pdf.cell(col_width, 6, "?", border=1)
+            except Exception:
+                pass
     pdf.ln()
