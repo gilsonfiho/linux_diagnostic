@@ -8,7 +8,7 @@ Suporta saída em Markdown e PDF.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from src.analyzer.diagnostic_analyzer import DiagnosticResult, Severity, Issue
 from src.collector.system_collector import SystemData
@@ -220,7 +220,7 @@ class ReportGenerator:
         }
         return badges.get(health, f"⚪ {health}")
 
-    def _generate_pdf(self, markdown_content: str) -> Path | None:
+    def _generate_pdf(self, markdown_content: str) -> Optional[Path]:
         """
         Gera PDF a partir do conteúdo Markdown.
 
