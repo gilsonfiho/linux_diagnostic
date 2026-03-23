@@ -1,0 +1,16 @@
+# Linux SSH Diagnostics - Dependências
+# ========================================
+# Instale com: pip install -r requirements.txt
+
+# Conexão SSH
+paramiko>=3.4.0
+
+# Geração de PDF
+fpdf2>=2.7.9
+
+# Tipagem (Python 3.9 compatibility)
+typing_extensions>=4.0.0
+
+# Desenvolvimento / Testes
+pytest>=7.4.0
+pytest-cov>=4.1.0
