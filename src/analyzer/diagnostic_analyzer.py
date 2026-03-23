@@ -120,6 +120,7 @@ class DiagnosticAnalyzer:
         r"nfs.*server.*not responding",
         r"dropped packet",
         r"link is down",
+        r"tty.*input overrun",
     ]
 
     def analyze(self, data: SystemData) -> DiagnosticResult:
@@ -168,7 +169,8 @@ class DiagnosticAnalyzer:
         result.summary = self._generate_summary(result)
 
         # Ordena por severidade: CRITICAL > WARNING > INFO
-        severity_order = {Severity.CRITICAL: 0, Severity.WARNING: 1, Severity.INFO: 2}
+        severity_order = {Severity.CRITICAL: 0,
+                          Severity.WARNING: 1, Severity.INFO: 2}
         result.issues.sort(key=lambda x: severity_order[x.severity])
 
         logger.info(
@@ -197,8 +199,9 @@ class DiagnosticAnalyzer:
             filesystem = parts[0]
             use_pct_str = parts[4].rstrip("%")
 
-            # Ignora tmpfs, devtmpfs e filesystems virtuais
-            if any(skip in filesystem for skip in ["tmpfs", "devtmpfs", "udev", "none"]):
+            # Ignora tmpfs, devtmpfs, filesystems virtuais e snap loop-mounts
+            # (snap packages são squashfs read-only — sempre aparecem como 100% cheios por design)
+            if any(skip in filesystem for skip in ["tmpfs", "devtmpfs", "udev", "none", "/dev/loop"]):
                 continue
 
             try:
@@ -423,8 +426,10 @@ class DiagnosticAnalyzer:
         # Verifica saída de sensors (lm-sensors)
         if self._has_output(data.sensors):
             for line in data.sensors.stdout.splitlines():
-                # Extrai temperaturas no formato "+XX.X°C"
-                matches = re.findall(r"([+-]?\d+\.\d+)°?C", line)
+                # Remove anotações de threshold entre parênteses antes de extrair temperatura
+                # Ex: "+42.0°C  (high = +100.0°C, crit = +100.0°C)" → "+42.0°C"
+                line_clean = re.sub(r"\(.*?\)", "", line)
+                matches = re.findall(r"([+-]?\d+\.\d+)°?C", line_clean)
                 for match in matches:
                     try:
                         temp = float(match)
@@ -526,7 +531,8 @@ class DiagnosticAnalyzer:
                     raw_evidence=errors[:500],
                 ))
 
-            disconnect_count = len(re.findall(r"disconnect", errors, re.IGNORECASE))
+            disconnect_count = len(re.findall(
+                r"disconnect", errors, re.IGNORECASE))
             if disconnect_count > 5:
                 usb_issues.append(Issue(
                     severity=Severity.WARNING,
@@ -623,7 +629,8 @@ class DiagnosticAnalyzer:
                         "Investigue os logs completos para determinar a causa raiz. "
                         f"Execute manualmente: dmesg -T | grep -i '{pattern}'"
                     ),
-                    raw_evidence=self._extract_matching_lines(raw_evidence, pattern)[:800],
+                    raw_evidence=self._extract_matching_lines(
+                        raw_evidence, pattern, max_lines=20)[:1500],
                 ))
 
         for pattern in self.WARNING_PATTERNS:
@@ -641,7 +648,8 @@ class DiagnosticAnalyzer:
                         f"Verifique o contexto completo. "
                         f"Execute: journalctl -p 3 -xb | grep -i '{pattern}'"
                     ),
-                    raw_evidence=self._extract_matching_lines(raw_evidence, pattern)[:600],
+                    raw_evidence=self._extract_matching_lines(
+                        raw_evidence, pattern, max_lines=20)[:1500],
                 ))
 
     def _analyze_failed_services(self, data: SystemData, result: DiagnosticResult) -> None:

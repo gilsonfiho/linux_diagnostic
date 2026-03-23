@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-from src.collector.ssh_client import SSHClient
+from src.collector.ssh_client import SSHClient, SSHConnectionError
 from src.collector.system_collector import SystemCollector
 from src.analyzer.diagnostic_analyzer import DiagnosticAnalyzer
 from src.reporter.report_generator import ReportGenerator
@@ -136,9 +136,7 @@ def main() -> int:
                 timeout=args.timeout,
             )
             system_data = collector.collect_all()
-            logger.info(
-                f"Coleta concluída: {len(system_data)} conjuntos de dados obtidos"
-            )
+            logger.info("Coleta concluída com sucesso")
 
             # 3. Analisar dados
             logger.info("Etapa 3/4: Analisando dados coletados...")
@@ -195,7 +193,7 @@ def main() -> int:
 
         return 0
 
-    except ConnectionError as e:
+    except SSHConnectionError as e:
         logger.error(f"Falha na conexão SSH: {e}")
         return 1
     except TimeoutError as e:
