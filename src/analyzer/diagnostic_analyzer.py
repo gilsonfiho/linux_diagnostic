@@ -423,8 +423,10 @@ class DiagnosticAnalyzer:
         # Verifica saída de sensors (lm-sensors)
         if self._has_output(data.sensors):
             for line in data.sensors.stdout.splitlines():
-                # Extrai temperaturas no formato "+XX.X°C"
-                matches = re.findall(r"([+-]?\d+\.\d+)°?C", line)
+                # Remove anotações de threshold entre parênteses antes de extrair temperatura
+                # Ex: "+42.0°C  (high = +100.0°C, crit = +100.0°C)" → "+42.0°C"
+                line_clean = re.sub(r"\(.*?\)", "", line)
+                matches = re.findall(r"([+-]?\d+\.\d+)°?C", line_clean)
                 for match in matches:
                     try:
                         temp = float(match)
