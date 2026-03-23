@@ -30,10 +30,13 @@ def make_healthy_data() -> SystemData:
     data = SystemData()
     data.hostname = make_result("server01.local")
     data.os_info = make_result('PRETTY_NAME="Ubuntu 22.04.3 LTS"\nID=ubuntu\n')
-    data.kernel = make_result("Linux server01 5.15.0-91-generic #101-Ubuntu x86_64")
-    data.uptime = make_result(" 14:23:01 up 7 days,  3:42,  load average: 0.45, 0.52, 0.48")
+    data.kernel = make_result(
+        "Linux server01 5.15.0-91-generic #101-Ubuntu x86_64")
+    data.uptime = make_result(
+        " 14:23:01 up 7 days,  3:42,  load average: 0.45, 0.52, 0.48")
     data.load_average = make_result("0.45 0.52 0.48 2/342 12345")
-    data.cpu_info = make_result("4\nmodel name\t: Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz")
+    data.cpu_info = make_result(
+        "4\nmodel name\t: Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz")
     data.memory = make_result(
         "               total        used        free      shared  buff/cache   available\n"
         "Mem:            7850        3012        2341         245        2496        4521\n"
@@ -132,7 +135,8 @@ class TestDiskAnalysis:
             "/dev/sda1        50G   18G   30G  37% /\n"
         )
         result = analyzer.analyze(data)
-        disk_issues = [i for i in result.issues if i.category == "Armazenamento"]
+        disk_issues = [
+            i for i in result.issues if i.category == "Armazenamento"]
         assert any(i.severity == Severity.INFO for i in disk_issues)
 
     def test_disk_warning_at_85_percent(self, analyzer):
@@ -142,7 +146,8 @@ class TestDiskAnalysis:
             "/dev/sda1        50G   43G    7G  85% /\n"
         )
         result = analyzer.analyze(data)
-        disk_issues = [i for i in result.issues if i.category == "Armazenamento"]
+        disk_issues = [
+            i for i in result.issues if i.category == "Armazenamento"]
         assert any(i.severity == Severity.WARNING for i in disk_issues)
 
     def test_disk_critical_at_95_percent(self, analyzer):
@@ -152,7 +157,8 @@ class TestDiskAnalysis:
             "/dev/sda1        50G   48G  1.5G  97% /\n"
         )
         result = analyzer.analyze(data)
-        disk_issues = [i for i in result.issues if i.category == "Armazenamento"]
+        disk_issues = [
+            i for i in result.issues if i.category == "Armazenamento"]
         assert any(i.severity == Severity.CRITICAL for i in disk_issues)
 
     def test_tmpfs_is_ignored(self, analyzer):
@@ -175,7 +181,8 @@ class TestDiskAnalysis:
             f"/dev/sda1        50G   40G   10G  {DiagnosticAnalyzer.DISK_WARNING_PCT}% /\n"
         )
         result = analyzer.analyze(data)
-        disk_issues = [i for i in result.issues if i.category == "Armazenamento"]
+        disk_issues = [
+            i for i in result.issues if i.category == "Armazenamento"]
         assert any(i.severity == Severity.WARNING for i in disk_issues)
 
     def test_disk_threshold_exactly_at_critical(self, analyzer):
@@ -185,7 +192,8 @@ class TestDiskAnalysis:
             f"/dev/sda1        50G   45G    5G  {DiagnosticAnalyzer.DISK_CRITICAL_PCT}% /\n"
         )
         result = analyzer.analyze(data)
-        disk_issues = [i for i in result.issues if i.category == "Armazenamento"]
+        disk_issues = [
+            i for i in result.issues if i.category == "Armazenamento"]
         assert any(i.severity == Severity.CRITICAL for i in disk_issues)
 
 
@@ -334,7 +342,8 @@ class TestTemperatureAnalysis:
 
     def test_temperature_from_thermal_zone(self, analyzer):
         data = make_empty_data()
-        data.vcgencmd_temp = make_result("thermal_zone0: 45.0°C\nthermal_zone1: 43.0°C\n")
+        data.vcgencmd_temp = make_result(
+            "thermal_zone0: 45.0°C\nthermal_zone1: 43.0°C\n")
         result = analyzer.analyze(data)
         temp_issues = [i for i in result.issues if i.category == "Temperatura"]
         assert len(temp_issues) > 0
@@ -349,7 +358,8 @@ class TestDmesgAnalysis:
             "[Mon Nov 20 14:00:01 2023] kernel panic - not syncing: VFS: Unable to mount\n"
         )
         result = analyzer.analyze(data)
-        log_issues = [i for i in result.issues if "dmesg" in i.category.lower()]
+        log_issues = [
+            i for i in result.issues if "dmesg" in i.category.lower()]
         assert any(i.severity == Severity.CRITICAL for i in log_issues)
 
     def test_oom_kill_is_critical(self, analyzer):
@@ -358,7 +368,8 @@ class TestDmesgAnalysis:
             "[Mon Nov 20 14:01:05 2023] Out of memory: Kill process 1234 (apache2) score 900\n"
         )
         result = analyzer.analyze(data)
-        log_issues = [i for i in result.issues if "dmesg" in i.category.lower()]
+        log_issues = [
+            i for i in result.issues if "dmesg" in i.category.lower()]
         assert any(i.severity == Severity.CRITICAL for i in log_issues)
 
     def test_io_error_is_critical(self, analyzer):
@@ -367,7 +378,8 @@ class TestDmesgAnalysis:
             "[Mon Nov 20 14:02:00 2023] blk_update_request: I/O error, dev sda, sector 123456\n"
         )
         result = analyzer.analyze(data)
-        log_issues = [i for i in result.issues if "dmesg" in i.category.lower()]
+        log_issues = [
+            i for i in result.issues if "dmesg" in i.category.lower()]
         assert any(i.severity == Severity.CRITICAL for i in log_issues)
 
     def test_segfault_is_warning(self, analyzer):
@@ -376,7 +388,8 @@ class TestDmesgAnalysis:
             "[Mon Nov 20 14:03:00 2023] apache2[5678]: segfault at 0 ip 00007f rsp 00007f error 4\n"
         )
         result = analyzer.analyze(data)
-        log_issues = [i for i in result.issues if "dmesg" in i.category.lower()]
+        log_issues = [
+            i for i in result.issues if "dmesg" in i.category.lower()]
         assert any(i.severity == Severity.WARNING for i in log_issues)
 
     def test_clean_dmesg_no_log_issues(self, analyzer):
@@ -387,7 +400,8 @@ class TestDmesgAnalysis:
             "[Mon Nov 20 14:00:10 2023] Booting paravirtualized kernel on bare hardware\n"
         )
         result = analyzer.analyze(data)
-        log_issues = [i for i in result.issues if "dmesg" in i.category.lower()]
+        log_issues = [
+            i for i in result.issues if "dmesg" in i.category.lower()]
         # Sem padrões críticos no dmesg limpo
         assert not any(i.severity == Severity.CRITICAL for i in log_issues)
 
@@ -441,7 +455,8 @@ class TestOverallHealth:
         )
         result = analyzer.analyze(data)
         assert len(result.critical_issues) > 0
-        assert all(i.severity == Severity.CRITICAL for i in result.critical_issues)
+        assert all(
+            i.severity == Severity.CRITICAL for i in result.critical_issues)
 
     def test_warning_issues_property(self, analyzer):
         data = make_empty_data()
@@ -451,3 +466,74 @@ class TestOverallHealth:
         )
         result = analyzer.analyze(data)
         assert all(i.severity == Severity.WARNING for i in result.warning_issues)
+
+
+class TestTtyOverruns:
+    """Testes para _analyze_tty_overruns."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return DiagnosticAnalyzer()
+
+    def _make_dmesg(self, lines: list) -> "SystemData":
+        data = make_empty_data()
+        data.dmesg = make_result("\n".join(lines))
+        return data
+
+    def test_no_overruns_returns_nothing(self, analyzer):
+        data = self._make_dmesg(["[seg mar 23 11:00:00 2026] Linux version 5.10.17"])
+        result = analyzer.analyze(data)
+        tty_issues = [i for i in result.issues if "Serial" in i.category]
+        assert tty_issues == []
+
+    def test_few_overruns_is_warning(self, analyzer):
+        lines = [
+            f"[seg mar 23 11:{i:02d}:00 2026] ttyS ttyS0: 1 input overrun(s)"
+            for i in range(5)
+        ]
+        data = self._make_dmesg(lines)
+        result = analyzer.analyze(data)
+        tty_issues = [i for i in result.issues if "Serial" in i.category]
+        assert len(tty_issues) == 1
+        assert tty_issues[0].severity == Severity.WARNING
+
+    def test_many_overruns_is_critical(self, analyzer):
+        lines = [
+            f"[seg mar 23 11:{i:02d}:00 2026] ttyS ttyS0: 1 input overrun(s)"
+            for i in range(25)
+        ]
+        data = self._make_dmesg(lines)
+        result = analyzer.analyze(data)
+        tty_issues = [i for i in result.issues if "Serial" in i.category]
+        assert len(tty_issues) == 1
+        assert tty_issues[0].severity == Severity.CRITICAL
+
+    def test_sums_count_per_line(self, analyzer):
+        """Linhas com N > 1 devem somar o total real de overruns."""
+        lines = [
+            "[seg mar 23 11:00:00 2026] ttyS ttyS0: 3 input overrun(s)",
+            "[seg mar 23 11:01:00 2026] ttyS ttyS0: 2 input overrun(s)",
+        ]
+        data = self._make_dmesg(lines)
+        result = analyzer.analyze(data)
+        tty_issues = [i for i in result.issues if "Serial" in i.category]
+        assert "5 ocorr" in tty_issues[0].title  # "5 ocorrências"
+
+    def test_device_name_in_description(self, analyzer):
+        lines = ["[seg mar 23 11:00:00 2026] ttyS ttyS0: 1 input overrun(s)"]
+        data = self._make_dmesg(lines)
+        result = analyzer.analyze(data)
+        tty_issues = [i for i in result.issues if "Serial" in i.category]
+        assert "ttyS0" in tty_issues[0].description
+
+    def test_timestamps_shown_in_description(self, analyzer):
+        lines = [
+            "[seg mar 23 11:00:00 2026] ttyS ttyS0: 1 input overrun(s)",
+            "[seg mar 23 13:30:00 2026] ttyS ttyS0: 1 input overrun(s)",
+        ]
+        data = self._make_dmesg(lines)
+        result = analyzer.analyze(data)
+        tty_issues = [i for i in result.issues if "Serial" in i.category]
+        desc = tty_issues[0].description
+        assert "11:00:00" in desc
+        assert "13:30:00" in desc

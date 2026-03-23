@@ -120,7 +120,6 @@ class DiagnosticAnalyzer:
         r"nfs.*server.*not responding",
         r"dropped packet",
         r"link is down",
-        r"tty.*input overrun",
     ]
 
     def analyze(self, data: SystemData) -> DiagnosticResult:
@@ -158,6 +157,9 @@ class DiagnosticAnalyzer:
 
         logger.debug("Analisando: logs do sistema...")
         self._analyze_dmesg(data, result)
+
+        logger.debug("Analisando: overruns em portas seriais...")
+        self._analyze_tty_overruns(data, result)
 
         logger.debug("Analisando: erros críticos (journalctl)...")
         self._analyze_journalctl(data, result)
@@ -584,6 +586,72 @@ class DiagnosticAnalyzer:
             result=result,
             raw_evidence=data.dmesg.stdout,
         )
+
+    def _analyze_tty_overruns(self, data: SystemData, result: DiagnosticResult) -> None:
+        """Analisa input overruns em portas seriais (ttyS/ttyAMA) com contagem e período."""
+        if not self._has_output(data.dmesg):
+            return
+
+        overrun_lines = [
+            line for line in data.dmesg.stdout.splitlines()
+            if re.search(r"tty.*input overrun", line, re.IGNORECASE)
+        ]
+        if not overrun_lines:
+            return
+
+        # Soma o total real de overruns (cada linha pode ter N > 1)
+        total = 0
+        devices: dict = {}
+        for line in overrun_lines:
+            m = re.search(r"(\d+)\s+input overrun", line)
+            count = int(m.group(1)) if m else 1
+            total += count
+            dm = re.search(r"(tty\S+):\s+\d+\s+input overrun", line, re.IGNORECASE)
+            dev = dm.group(1) if dm else "unknown"
+            devices[dev] = devices.get(dev, 0) + count
+
+        first_ts = re.sub(r"^\[(.+?)\].*", r"\1", overrun_lines[0]).strip()
+        last_ts = re.sub(r"^\[(.+?)\].*", r"\1", overrun_lines[-1]).strip()
+        device_summary = ", ".join(
+            f"{dev} ({cnt} overruns)" for dev, cnt in sorted(devices.items())
+        )
+
+        # CRITICAL se >= 20 overruns totais, WARNING caso contrário
+        severity = Severity.CRITICAL if total >= 20 else Severity.WARNING
+
+        # Evidência: até 20 linhas + indicador de truncamento
+        evidence = overrun_lines[:20]
+        if len(overrun_lines) > 20:
+            evidence.append(
+                f"... ({len(overrun_lines) - 20} eventos adicionais omitidos)"
+            )
+
+        result.issues.append(Issue(
+            severity=severity,
+            category="Serial (tty)",
+            title=(
+                f"Input overruns em porta serial: {total} ocorrências "
+                f"em {len(overrun_lines)} eventos"
+            ),
+            description=(
+                f"{total} input overruns detectados em {len(overrun_lines)} eventos "
+                f"nas porta(s) serial(is). "
+                f"Dispositivo(s): {device_summary}. "
+                f"Período: {first_ts} → {last_ts}. "
+                f"Overruns indicam que o buffer de recepção da UART está transbordando: "
+                f"a aplicação não consome os dados rápido o suficiente, "
+                f"ou a taxa de baud rate está acima do suportado pelo hardware."
+            ),
+            recommendation=(
+                "1. Verifique o baud rate configurado vs o do dispositivo conectado. "
+                "2. Habilite controle de fluxo de hardware (RTS/CTS): "
+                "stty -F /dev/ttyS0 crtscts. "
+                "3. Aumente a prioridade do processo leitor da serial. "
+                "4. Verifique o tipo de UART: setserial /dev/ttyS0 (usar 16550A ou superior). "
+                f"5. Inspecione todos os eventos: dmesg -T | grep -i 'tty.*overrun'"
+            ),
+            raw_evidence="\n".join(evidence),
+        ))
 
     def _analyze_journalctl(self, data: SystemData, result: DiagnosticResult) -> None:
         """Analisa erros do journalctl (systemd journal)."""
