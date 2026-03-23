@@ -24,7 +24,29 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
         ImportError: Se fpdf2 não estiver instalado.
         Exception: Em caso de falha na geração.
     """
-    from fpdf import FPDF  # type: ignore
+    from fpdf import FPDF  # type: ignore  # levanta ImportError se fpdf2 ausente
+    from fpdf.enums import XPos, YPos  # type: ignore  # introduzido no fpdf2 2.5.2
+
+    # Classe definida aqui para que FPDF esteja no escopo local.
+    # Definir no nível do módulo causaria NameError pois FPDF não é importado lá.
+    class DiagnosticPDF(FPDF):
+        """PDF customizado com cabeçalho e rodapé."""
+
+        def header(self):
+            self.set_font("Helvetica", "B", 8)
+            self.set_text_color(150, 150, 150)
+            self.cell(
+                0, 6, "Linux SSH Diagnostics - Relatório Automatizado",
+                new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C",
+            )
+            self.set_text_color(0, 0, 0)
+            self.ln(1)
+
+        def footer(self):
+            self.set_y(-12)
+            self.set_font("Helvetica", "I", 7)
+            self.set_text_color(150, 150, 150)
+            self.cell(0, 6, f"P\u00e1gina {self.page_no()}", align="C")
 
     pdf = DiagnosticPDF()
     pdf.add_page()
@@ -42,7 +64,7 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
             pdf.set_font("Helvetica", "B", 18)
             pdf.set_fill_color(30, 30, 60)
             pdf.set_text_color(255, 255, 255)
-            pdf.cell(0, 12, text[:80], ln=True, fill=True)
+            pdf.cell(0, 12, text[:80], new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(3)
 
@@ -52,7 +74,7 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
             pdf.set_font("Helvetica", "B", 14)
             pdf.set_fill_color(220, 230, 245)
             pdf.set_text_color(20, 20, 80)
-            pdf.cell(0, 10, text[:80], ln=True, fill=True)
+            pdf.cell(0, 10, text[:80], new_x=XPos.LMARGIN, new_y=YPos.NEXT, fill=True)
             pdf.set_text_color(0, 0, 0)
             pdf.ln(2)
 
@@ -61,7 +83,7 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
             text = _clean_markdown(line[4:])
             pdf.set_font("Helvetica", "B", 11)
             pdf.set_text_color(40, 40, 100)
-            pdf.cell(0, 8, text[:80], ln=True)
+            pdf.cell(0, 8, text[:80], new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.set_text_color(0, 0, 0)
 
         # Linha separadora
@@ -123,23 +145,6 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
     logger.debug(f"PDF salvo em: {output_path}")
 
 
-class DiagnosticPDF(FPDF):
-    """PDF customizado com cabeçalho e rodapé."""
-
-    def header(self):
-        self.set_font("Helvetica", "B", 8)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 6, "Linux SSH Diagnostics - Relatório Automatizado", ln=True, align="C")
-        self.set_text_color(0, 0, 0)
-        self.ln(1)
-
-    def footer(self):
-        self.set_y(-12)
-        self.set_font("Helvetica", "I", 7)
-        self.set_text_color(150, 150, 150)
-        self.cell(0, 6, f"Página {self.page_no()}", align="C")
-
-
 def _clean_markdown(text: str) -> str:
     """Remove marcações Markdown simples para renderização em PDF."""
     # Remove bold/italic
@@ -161,7 +166,6 @@ def _safe_encode(text: str) -> str:
 
 def _render_table_line(pdf, line: str) -> None:
     """Renderiza uma linha de tabela Markdown como células PDF."""
-    from fpdf import FPDF
     # Pula linhas de separação (|---|---|)
     if re.match(r"\|[\s\-:]+\|", line):
         return
