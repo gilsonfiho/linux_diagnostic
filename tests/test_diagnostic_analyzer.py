@@ -537,3 +537,109 @@ class TestTtyOverruns:
         desc = tty_issues[0].description
         assert "11:00:00" in desc
         assert "13:30:00" in desc
+
+
+class TestUsbSerialAnalysis:
+    """Testes para _analyze_usb_serial (ftdi_sio, cp210x, ch341, cdc_acm, pl2303)."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return DiagnosticAnalyzer()
+
+    def _make_dmesg(self, lines: list) -> "SystemData":
+        data = make_empty_data()
+        data.dmesg = make_result("\n".join(lines))
+        return data
+
+    def test_no_usb_serial_errors_returns_nothing(self, analyzer):
+        data = self._make_dmesg(["[Mon Jan 01 10:00:00 2024] Linux version 5.15.0"])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert usb_serial_issues == []
+
+    def test_ftdi_timeout_is_critical(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:01 2024] ftdi_sio ttyUSB0: failed to get modem status: -110",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert len(usb_serial_issues) == 1
+        assert usb_serial_issues[0].severity == Severity.CRITICAL
+
+    def test_ftdi_enodev_is_critical(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:02 2024] ftdi_sio ttyUSB0: failed to get modem status: -19",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert usb_serial_issues[0].severity == Severity.CRITICAL
+
+    def test_cp210x_error_is_detected(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:03 2024] cp210x ttyUSB1: failed to set baud rate: -110",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert len(usb_serial_issues) == 1
+
+    def test_ch341_error_is_detected(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:04 2024] ch341 ttyUSB0: failed to set line control: -32",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert len(usb_serial_issues) == 1
+        assert usb_serial_issues[0].severity == Severity.CRITICAL
+
+    def test_usb_serial_without_critical_errno_is_warning(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:05 2024] ftdi_sio ttyUSB0: reset from device",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert len(usb_serial_issues) == 1
+        assert usb_serial_issues[0].severity == Severity.WARNING
+
+    def test_device_name_appears_in_title(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:06 2024] ftdi_sio ttyUSB0: failed to get modem status: -110",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert "ttyUSB0" in usb_serial_issues[0].title
+
+    def test_errno_name_in_description(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:07 2024] ftdi_sio ttyUSB0: failed to get modem status: -110",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert "ETIMEDOUT" in usb_serial_issues[0].description
+
+    def test_multiple_errors_counted_correctly(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:08 2024] ftdi_sio ttyUSB0: failed to get modem status: -110",
+            "[Mon Jan 01 10:00:09 2024] ftdi_sio ttyUSB0: failed to get modem status: -110",
+            "[Mon Jan 01 10:00:10 2024] ftdi_sio ttyUSB0: failed to get modem status: -110",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert "3 ocorrência" in usb_serial_issues[0].title
+
+    def test_cdc_acm_error_is_detected(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:11 2024] cdc_acm ttyACM0: failed to send disconnect request: -110",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert len(usb_serial_issues) == 1
+        assert usb_serial_issues[0].severity == Severity.CRITICAL
+
+    def test_irrelevant_dmesg_not_detected(self, analyzer):
+        data = self._make_dmesg([
+            "[Mon Jan 01 10:00:12 2024] usb 1-1: new full-speed USB device number 3 using xhci_hcd",
+            "[Mon Jan 01 10:00:13 2024] ttyS ttyS0: 1 input overrun(s)",
+        ])
+        result = analyzer.analyze(data)
+        usb_serial_issues = [i for i in result.issues if i.category == "Serial USB"]
+        assert usb_serial_issues == []

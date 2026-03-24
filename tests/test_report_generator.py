@@ -283,7 +283,8 @@ class TestReportContent:
         assert "empty-server" in content
 
     def test_report_name_in_filename(self, tmp_output, sample_result, sample_data):
-        gen = ReportGenerator(output_dir=tmp_output, report_name="custom_report_name")
+        gen = ReportGenerator(output_dir=tmp_output,
+                              report_name="custom_report_name")
         files = gen.generate(
             diagnostic_result=sample_result,
             system_data=sample_data,
@@ -332,11 +333,13 @@ class TestEndToEnd:
         analyzer = DiagnosticAnalyzer()
         result = analyzer.analyze(system_data)
 
-        gen = ReportGenerator(output_dir=tmp_output, report_name="e2e_critical")
+        gen = ReportGenerator(output_dir=tmp_output,
+                              report_name="e2e_critical")
         files = gen.generate(
             diagnostic_result=result,
             system_data=system_data,
-            connection_info={"host": "mock-server", "port": 22, "user": "root"},
+            connection_info={"host": "mock-server",
+                             "port": 22, "user": "root"},
             output_format="markdown",
         )
 
@@ -355,11 +358,13 @@ class TestEndToEnd:
         analyzer = DiagnosticAnalyzer()
         result = analyzer.analyze(system_data)
 
-        gen = ReportGenerator(output_dir=tmp_output, report_name="e2e_warnings")
+        gen = ReportGenerator(output_dir=tmp_output,
+                              report_name="e2e_warnings")
         files = gen.generate(
             diagnostic_result=result,
             system_data=system_data,
-            connection_info={"host": "mock-server", "port": 22, "user": "admin"},
+            connection_info={"host": "mock-server",
+                             "port": 22, "user": "admin"},
             output_format="markdown",
         )
 

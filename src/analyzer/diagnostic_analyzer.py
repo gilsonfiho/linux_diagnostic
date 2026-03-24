@@ -161,6 +161,9 @@ class DiagnosticAnalyzer:
         logger.debug("Analisando: overruns em portas seriais...")
         self._analyze_tty_overruns(data, result)
 
+        logger.debug("Analisando: erros em adaptadores USB-serial...")
+        self._analyze_usb_serial(data, result)
+
         logger.debug("Analisando: erros críticos (journalctl)...")
         self._analyze_journalctl(data, result)
 
@@ -649,6 +652,74 @@ class DiagnosticAnalyzer:
                 "3. Aumente a prioridade do processo leitor da serial. "
                 "4. Verifique o tipo de UART: setserial /dev/ttyS0 (usar 16550A ou superior). "
                 f"5. Inspecione todos os eventos: dmesg -T | grep -i 'tty.*overrun'"
+            ),
+            raw_evidence="\n".join(evidence),
+        ))
+
+    def _analyze_usb_serial(self, data: SystemData, result: DiagnosticResult) -> None:
+        """Analisa erros em adaptadores USB-serial (ftdi_sio, cp210x, ch341, cdc_acm, pl2303)."""
+        if not self._has_output(data.dmesg):
+            return
+
+        # Códigos errno que indicam falha crítica de comunicação
+        CRITICAL_ERRNOS = {
+            "-110": "ETIMEDOUT",
+            "-19":  "ENODEV",
+            "-32":  "EPIPE",
+            "-104": "ECONNRESET",
+            "-5":   "EIO",
+        }
+        USB_SERIAL_DRIVERS = r"ftdi_sio|cp210x|ch341|cdc_acm|pl2303"
+
+        error_lines = [
+            line for line in data.dmesg.stdout.splitlines()
+            if re.search(USB_SERIAL_DRIVERS, line, re.IGNORECASE)
+            and re.search(r"(fail|error|timeout|reset|disconnect)", line, re.IGNORECASE)
+        ]
+        if not error_lines:
+            return
+
+        # Classifica errno e coleta dispositivos afetados
+        critical_found: list = []
+        devices: set = set()
+        for line in error_lines:
+            m = re.search(r"(ttyUSB\d+|ttyACM\d+)", line, re.IGNORECASE)
+            if m:
+                devices.add(m.group(1))
+            for errno, name in CRITICAL_ERRNOS.items():
+                if errno in line:
+                    critical_found.append(f"{errno} ({name})")
+                    break
+
+        n_total = len(error_lines)
+        device_str = ", ".join(sorted(devices)) if devices else "desconhecido"
+        severity = Severity.CRITICAL if critical_found else Severity.WARNING
+
+        evidence = error_lines[:20]
+        if len(error_lines) > 20:
+            evidence.append(f"... ({len(error_lines) - 20} eventos adicionais omitidos)")
+
+        errno_detail = ""
+        if critical_found:
+            unique_errnos = list(dict.fromkeys(critical_found))  # preserva ordem, remove dups
+            errno_detail = f" Códigos de erro críticos detectados: {', '.join(unique_errnos)}."
+
+        result.issues.append(Issue(
+            severity=severity,
+            category="Serial USB",
+            title=f"Erros em adaptador USB-serial: {n_total} ocorrência(s) em {device_str}",
+            description=(
+                f"{n_total} erro(s) detectado(s) no(s) adaptador(es) USB-serial "
+                f"(dispositivo(s): {device_str}).{errno_detail} "
+                "Falhas como ETIMEDOUT (-110) indicam que o dispositivo USB não respondeu "
+                "a tempo; ENODEV (-19) que foi desconectado inesperadamente."
+            ),
+            recommendation=(
+                "1. Verifique a conexão física do adaptador USB-serial. "
+                "2. Troque o cabo USB e teste em outra porta. "
+                "3. Em Raspberry Pi, verifique a alimentação (USB-serial falha com baixa tensão). "
+                "4. Certifique-se de que o driver correto está carregado: lsmod | grep ftdi_sio. "
+                f"5. Consulte todos os eventos: dmesg -T | grep -iE '{USB_SERIAL_DRIVERS}'"
             ),
             raw_evidence="\n".join(evidence),
         ))

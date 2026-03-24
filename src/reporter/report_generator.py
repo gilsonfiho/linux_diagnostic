@@ -106,13 +106,15 @@ class ReportGenerator:
         # ---- Cabeçalho ----
         sections.append(f"# 🖥️ Relatório de Diagnóstico Linux")
         sections.append(f"\n**Gerado em:** {now}  ")
-        sections.append(f"**Host:** `{conn_info.get('host', 'N/A')}:{conn_info.get('port', 22)}`  ")
+        sections.append(
+            f"**Host:** `{conn_info.get('host', 'N/A')}:{conn_info.get('port', 22)}`  ")
         sections.append(f"**Usuário:** `{conn_info.get('user', 'N/A')}`  ")
         sections.append(f"**Hostname:** `{result.hostname}`  ")
         sections.append(f"**Sistema:** {result.os_info}  ")
         sections.append(f"**Kernel:** `{result.kernel}`  ")
         sections.append(f"**Uptime:** {result.uptime}  ")
-        sections.append(f"**Saúde Geral:** {self._health_badge(result.overall_health)}")
+        sections.append(
+            f"**Saúde Geral:** {self._health_badge(result.overall_health)}")
 
         # ---- Resumo Executivo ----
         sections.append("\n---\n")
@@ -187,7 +189,8 @@ class ReportGenerator:
         sections = []
 
         raw_sections = [
-            ("Informações do Sistema", [data.hostname, data.os_info, data.kernel]),
+            ("Informações do Sistema", [
+             data.hostname, data.os_info, data.kernel]),
             ("Uptime e Carga", [data.uptime, data.load_average]),
             ("CPU", [data.cpu_info, data.top]),
             ("Memória", [data.memory]),

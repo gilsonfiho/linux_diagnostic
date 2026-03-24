@@ -249,7 +249,8 @@ class MockSSHClient:
                 "", 0,
             )
         elif "loadavg" in cmd:
-            return ("15.20 14.80 13.50 8/342 12345", "", 0)  # carga crítica (4 CPUs)
+            # carga crítica (4 CPUs)
+            return ("15.20 14.80 13.50 8/342 12345", "", 0)
         elif "nproc" in cmd or "cpuinfo" in cmd:
             return ("4\nmodel name\t: Intel(R) Core(TM) i5-8250U CPU @ 1.60GHz", "", 0)
         elif "free -m" in cmd:
@@ -262,7 +263,8 @@ class MockSSHClient:
         elif "sensors" in cmd:
             return (
                 "coretemp-isa-0000\n"
-                "Package id 0:  +88.0°C  (high = +100.0°C, crit = +100.0°C)\n"  # temp crítica
+                # temp crítica
+                "Package id 0:  +88.0°C  (high = +100.0°C, crit = +100.0°C)\n"
                 "Core 0:        +87.0°C\n",
                 "", 0,
             )
