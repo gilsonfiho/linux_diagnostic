@@ -175,7 +175,7 @@ class ReportGenerator:
             f"**Recomendação:** {issue.recommendation}\n",
         ]
 
-        if show_evidence and issue.raw_evidence:
+        if show_evidence and issue.raw_evidence.strip():
             # Trunca evidência para não sobrecarregar o relatório
             evidence = issue.raw_evidence[:600]
             if len(issue.raw_evidence) > 600:

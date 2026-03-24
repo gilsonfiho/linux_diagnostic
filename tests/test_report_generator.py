@@ -223,6 +223,45 @@ class TestMarkdownGeneration:
         content = files[0].read_text(encoding="utf-8")
         assert "Ação imediata" in content
 
+    def test_evidence_title_shown_when_present(self, generator):
+        """Título 'Evidência' deve aparecer quando raw_evidence tem conteúdo."""
+        issue = Issue(
+            severity=Severity.CRITICAL,
+            category="Teste",
+            title="Titulo",
+            description="Desc",
+            recommendation="Rec",
+            raw_evidence="linha de log real",
+        )
+        text = generator._format_issue(issue)
+        assert "**Evidência:**" in text
+
+    def test_evidence_title_hidden_when_empty(self, generator):
+        """Título 'Evidência' NÃO deve aparecer quando raw_evidence é vazio."""
+        issue = Issue(
+            severity=Severity.WARNING,
+            category="Teste",
+            title="Titulo",
+            description="Desc",
+            recommendation="Rec",
+            raw_evidence="",
+        )
+        text = generator._format_issue(issue)
+        assert "**Evidência:**" not in text
+
+    def test_evidence_title_hidden_when_whitespace_only(self, generator):
+        """Título 'Evidência' NÃO deve aparecer quando raw_evidence é só espaço/newline."""
+        issue = Issue(
+            severity=Severity.INFO,
+            category="Teste",
+            title="Titulo",
+            description="Desc",
+            recommendation="Rec",
+            raw_evidence="  \n  \n  ",
+        )
+        text = generator._format_issue(issue)
+        assert "**Evidência:**" not in text
+
 
 class TestPDFGeneration:
     """Testa geração de PDF."""
