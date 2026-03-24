@@ -57,6 +57,7 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
 
     while i < len(lines):
         line = lines[i]
+        pdf.set_x(pdf.l_margin)  # garante largura total para multi_cell(0, ...)
 
         # Cabeçalho H1
         if line.startswith("# "):
@@ -107,13 +108,17 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
                 pdf.set_font("Courier", size=7)
                 pdf.set_fill_color(245, 245, 245)
                 pdf.set_draw_color(200, 200, 200)
-                code_text = "\n".join(code_lines[:40])
-                try:
-                    pdf.multi_cell(
-                        0, 4, _safe_encode(code_text[:1200]), border=1, fill=True
-                    )
-                except Exception:
-                    pass
+                for code_line in code_lines[:40]:
+                    safe_line = _safe_encode(code_line[:200])
+                    if not safe_line.strip():
+                        pdf.ln(2)
+                        continue
+                    try:
+                        pdf.set_x(pdf.l_margin)
+                        pdf.multi_cell(0, 4, safe_line, border=1, fill=True,
+                                       new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    except Exception as e:
+                        logger.debug(f"Erro ao renderizar linha de código no PDF: {e}")
                 pdf.set_font("Helvetica", size=9)
                 pdf.ln(2)
 
