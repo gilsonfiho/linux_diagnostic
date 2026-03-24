@@ -223,6 +223,45 @@ class TestMarkdownGeneration:
         content = files[0].read_text(encoding="utf-8")
         assert "Ação imediata" in content
 
+    def test_evidence_title_shown_when_present(self, generator):
+        """Título 'Evidência' deve aparecer quando raw_evidence tem conteúdo."""
+        issue = Issue(
+            severity=Severity.CRITICAL,
+            category="Teste",
+            title="Titulo",
+            description="Desc",
+            recommendation="Rec",
+            raw_evidence="linha de log real",
+        )
+        text = generator._format_issue(issue)
+        assert "**Evidência:**" in text
+
+    def test_evidence_title_hidden_when_empty(self, generator):
+        """Título 'Evidência' NÃO deve aparecer quando raw_evidence é vazio."""
+        issue = Issue(
+            severity=Severity.WARNING,
+            category="Teste",
+            title="Titulo",
+            description="Desc",
+            recommendation="Rec",
+            raw_evidence="",
+        )
+        text = generator._format_issue(issue)
+        assert "**Evidência:**" not in text
+
+    def test_evidence_title_hidden_when_whitespace_only(self, generator):
+        """Título 'Evidência' NÃO deve aparecer quando raw_evidence é só espaço/newline."""
+        issue = Issue(
+            severity=Severity.INFO,
+            category="Teste",
+            title="Titulo",
+            description="Desc",
+            recommendation="Rec",
+            raw_evidence="  \n  \n  ",
+        )
+        text = generator._format_issue(issue)
+        assert "**Evidência:**" not in text
+
 
 class TestPDFGeneration:
     """Testa geração de PDF."""
@@ -283,7 +322,8 @@ class TestReportContent:
         assert "empty-server" in content
 
     def test_report_name_in_filename(self, tmp_output, sample_result, sample_data):
-        gen = ReportGenerator(output_dir=tmp_output, report_name="custom_report_name")
+        gen = ReportGenerator(output_dir=tmp_output,
+                              report_name="custom_report_name")
         files = gen.generate(
             diagnostic_result=sample_result,
             system_data=sample_data,
@@ -332,11 +372,13 @@ class TestEndToEnd:
         analyzer = DiagnosticAnalyzer()
         result = analyzer.analyze(system_data)
 
-        gen = ReportGenerator(output_dir=tmp_output, report_name="e2e_critical")
+        gen = ReportGenerator(output_dir=tmp_output,
+                              report_name="e2e_critical")
         files = gen.generate(
             diagnostic_result=result,
             system_data=system_data,
-            connection_info={"host": "mock-server", "port": 22, "user": "root"},
+            connection_info={"host": "mock-server",
+                             "port": 22, "user": "root"},
             output_format="markdown",
         )
 
@@ -355,11 +397,13 @@ class TestEndToEnd:
         analyzer = DiagnosticAnalyzer()
         result = analyzer.analyze(system_data)
 
-        gen = ReportGenerator(output_dir=tmp_output, report_name="e2e_warnings")
+        gen = ReportGenerator(output_dir=tmp_output,
+                              report_name="e2e_warnings")
         files = gen.generate(
             diagnostic_result=result,
             system_data=system_data,
-            connection_info={"host": "mock-server", "port": 22, "user": "admin"},
+            connection_info={"host": "mock-server",
+                             "port": 22, "user": "admin"},
             output_format="markdown",
         )
 

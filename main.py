@@ -41,8 +41,10 @@ def parse_arguments() -> argparse.Namespace:
 
     # Conexão SSH
     conn_group = parser.add_argument_group("Conexão SSH")
-    conn_group.add_argument("--host", required=True, help="IP ou hostname do servidor")
-    conn_group.add_argument("--port", type=int, default=22, help="Porta SSH (padrão: 22)")
+    conn_group.add_argument("--host", required=True,
+                            help="IP ou hostname do servidor")
+    conn_group.add_argument("--port", type=int, default=22,
+                            help="Porta SSH (padrão: 22)")
     conn_group.add_argument("--user", required=True, help="Usuário SSH")
 
     # Autenticação (mutuamente exclusivos)

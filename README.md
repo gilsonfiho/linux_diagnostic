@@ -13,7 +13,6 @@ Conecta remotamente, coleta dados críticos, analisa e gera relatórios em Markd
 - 📄 **Relatório em Markdown** detalhado e estruturado
 - 📑 **Relatório em PDF** gerado automaticamente
 - 🍓 **Suporte a Raspberry Pi** (vcgencmd, thermal_zones)
-- 🪵 **Logging estruturado** com saída colorida no terminal
 
 ---
 
