@@ -21,16 +21,24 @@ Conecta remotamente, coleta dados críticos, analisa e gera relatórios em Markd
 ```
 linux-ssh-diagnostics/
 ├── main.py                          # Entry point principal
-├── requirements.txt                 # Dependências Python
+├── requirements.txt                 # Dependências de runtime
+├── requirements-dev.txt             # Dependências de desenvolvimento (pytest)
 ├── setup.py                         # Instalação como pacote
-├── README.md                        # Este arquivo
+├── Dockerfile                       # Imagem Docker da aplicação
+├── docker-compose.yml               # Orquestração para uso via Docker
+├── .dockerignore                    # Arquivos excluídos do build Docker
+├── README.md
 ├── .gitignore
 ├── src/
 │   ├── collector/
 │   │   ├── ssh_client.py            # Conexão SSH (paramiko)
 │   │   └── system_collector.py      # Coleta de dados do sistema
 │   ├── analyzer/
-│   │   └── diagnostic_analyzer.py   # Análise e classificação de problemas
+│   │   ├── models.py                # Tipos: Severity, Issue, DiagnosticResult
+│   │   ├── hardware.py              # Analisadores: disco, memória, CPU, temperatura
+│   │   ├── devices.py               # Analisadores: USB, serial, USB-serial
+│   │   ├── logs.py                  # Analisadores: dmesg, journalctl, serviços
+│   │   └── diagnostic_analyzer.py   # Orquestrador — coordena os analisadores
 │   ├── reporter/
 │   │   ├── report_generator.py      # Geração de relatórios
 │   │   └── pdf_renderer.py          # Renderização PDF (fpdf2)
@@ -67,8 +75,57 @@ venv\Scripts\activate           # Windows
 ### 3. Instale as dependências
 
 ```bash
+# Runtime (necessário para uso normal)
 pip install -r requirements.txt
+
+# Desenvolvimento e testes
+pip install -r requirements-dev.txt
 ```
+
+---
+
+## 🐳 Docker
+
+### Build da imagem
+
+```bash
+docker build -t linux-diag .
+```
+
+### Uso direto com `docker run`
+
+```bash
+# Autenticação por senha
+docker run --rm \
+  -v $(pwd)/reports:/app/reports \
+  linux-diag --host 192.168.1.100 --user pi --password minhasenha
+
+# Autenticação por chave SSH
+docker run --rm \
+  -v $(pwd)/reports:/app/reports \
+  -v ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
+  linux-diag --host 192.168.1.100 --user pi --key /root/.ssh/id_rsa
+
+# Raspberry Pi
+docker run --rm \
+  -v $(pwd)/reports:/app/reports \
+  -v ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro \
+  linux-diag --host 192.168.1.50 --user pi --key /root/.ssh/id_rsa --raspberry
+```
+
+### Uso com `docker compose`
+
+```bash
+# Autenticação por senha
+docker compose run --rm linux-diag \
+  --host 192.168.1.100 --user pi --password minhasenha
+
+# Autenticação por chave SSH (descomente o volume no docker-compose.yml)
+docker compose run --rm linux-diag \
+  --host 192.168.1.100 --user pi --key /root/.ssh/id_rsa
+```
+
+> Os relatórios gerados ficam em `./reports/` na máquina host.
 
 ---
 
@@ -223,6 +280,8 @@ data = collector.collect_all()
 - Acesso SSH ao servidor alvo
 - `paramiko` (conexão SSH)
 - `fpdf2` (geração de PDF — opcional, Markdown sempre funciona)
+
+Para desenvolvimento e testes: `pytest`, `pytest-cov` (via `requirements-dev.txt`)
 
 ---
 

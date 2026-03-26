@@ -57,7 +57,8 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
 
     while i < len(lines):
         line = lines[i]
-        pdf.set_x(pdf.l_margin)  # garante largura total para multi_cell(0, ...)
+        # garante largura total para multi_cell(0, ...)
+        pdf.set_x(pdf.l_margin)
 
         # Cabeçalho H1
         if line.startswith("# "):
@@ -118,7 +119,8 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
                         pdf.multi_cell(0, 4, safe_line, border=1, fill=True,
                                        new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                     except Exception as e:
-                        logger.debug(f"Erro ao renderizar linha de código no PDF: {e}")
+                        logger.debug(
+                            f"Erro ao renderizar linha de código no PDF: {e}")
                 pdf.set_font("Helvetica", size=9)
                 pdf.ln(2)
 
@@ -129,7 +131,8 @@ def render_pdf_with_fpdf(markdown_content: str, output_path: Path) -> None:
         # Linha de tabela Markdown
         elif line.startswith("|"):
             _render_table_line(pdf, line)
-            pdf.set_x(pdf.l_margin)  # garante reset do X após células de tabela
+            # garante reset do X após células de tabela
+            pdf.set_x(pdf.l_margin)
 
         # Citação blockquote
         elif line.startswith("> "):
