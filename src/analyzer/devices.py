@@ -51,7 +51,8 @@ def analyze_usb(data: SystemData, result: DiagnosticResult) -> None:
                 raw_evidence=errors[:500],
             ))
 
-        disconnect_count = len(re.findall(r"disconnect", errors, re.IGNORECASE))
+        disconnect_count = len(re.findall(
+            r"disconnect", errors, re.IGNORECASE))
         if disconnect_count > 5:
             usb_issues.append(Issue(
                 severity=Severity.WARNING,
@@ -127,7 +128,8 @@ def analyze_tty_overruns(data: SystemData, result: DiagnosticResult) -> None:
     # Evidência: até 20 linhas + indicador de truncamento
     evidence = overrun_lines[:20]
     if len(overrun_lines) > 20:
-        evidence.append(f"... ({len(overrun_lines) - 20} eventos adicionais omitidos)")
+        evidence.append(
+            f"... ({len(overrun_lines) - 20} eventos adicionais omitidos)")
 
     result.issues.append(Issue(
         severity=severity,
@@ -188,11 +190,13 @@ def analyze_usb_serial(data: SystemData, result: DiagnosticResult) -> None:
 
     evidence = error_lines[:20]
     if len(error_lines) > 20:
-        evidence.append(f"... ({len(error_lines) - 20} eventos adicionais omitidos)")
+        evidence.append(
+            f"... ({len(error_lines) - 20} eventos adicionais omitidos)")
 
     errno_detail = ""
     if critical_found:
-        unique_errnos = list(dict.fromkeys(critical_found))  # preserva ordem, remove dups
+        # preserva ordem, remove dups
+        unique_errnos = list(dict.fromkeys(critical_found))
         errno_detail = f" Códigos de erro críticos detectados: {', '.join(unique_errnos)}."
 
     result.issues.append(Issue(

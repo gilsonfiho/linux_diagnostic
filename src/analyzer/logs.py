@@ -137,7 +137,8 @@ def _match_log_patterns(
                     "Investigue os logs completos para determinar a causa raiz. "
                     f"Execute manualmente: dmesg -T | grep -i '{pattern}'"
                 ),
-                raw_evidence=_extract_matching_lines(raw_evidence, pattern, max_lines=20)[:1500],
+                raw_evidence=_extract_matching_lines(
+                    raw_evidence, pattern, max_lines=20)[:1500],
             ))
 
     for pattern in WARNING_PATTERNS:
@@ -155,7 +156,8 @@ def _match_log_patterns(
                     f"Verifique o contexto completo. "
                     f"Execute: journalctl -p 3 -xb | grep -i '{pattern}'"
                 ),
-                raw_evidence=_extract_matching_lines(raw_evidence, pattern, max_lines=20)[:1500],
+                raw_evidence=_extract_matching_lines(
+                    raw_evidence, pattern, max_lines=20)[:1500],
             ))
 
 
