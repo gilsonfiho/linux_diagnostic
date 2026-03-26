@@ -1,0 +1,22 @@
+services:
+  linux-diag:
+    build: .
+    volumes:
+      - ./reports:/app/reports
+      # Para autenticação por chave SSH, descomente e ajuste o caminho:
+      # - ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro
+
+# Exemplos de uso:
+#
+#   Autenticação por senha:
+#     docker compose run --rm linux-diag \
+#       --host 192.168.1.100 --user pi --password minhasenha
+#
+#   Autenticação por chave SSH:
+#     docker compose run --rm linux-diag \
+#       --host 192.168.1.100 --user pi --key /root/.ssh/id_rsa
+#
+#   Raspberry Pi com log detalhado:
+#     docker compose run --rm linux-diag \
+#       --host 192.168.1.50 --user pi --key /root/.ssh/id_rsa \
+#       --raspberry --log-level DEBUG
