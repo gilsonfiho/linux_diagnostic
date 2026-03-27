@@ -34,6 +34,12 @@ from src.analyzer.logs import (
     analyze_journalctl,
     analyze_failed_services,
 )
+from src.analyzer.network import (
+    analyze_arp,
+    analyze_network_interface_errors,
+    analyze_network_link_events,
+    analyze_gateway_connectivity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +99,18 @@ class DiagnosticAnalyzer:
 
         logger.debug("Analisando: serviços com falha...")
         analyze_failed_services(data, result)
+
+        logger.debug("Analisando: ARP e conectividade de rede...")
+        analyze_arp(data, result)
+
+        logger.debug("Analisando: erros de interface de rede...")
+        analyze_network_interface_errors(data, result)
+
+        logger.debug("Analisando: eventos de link (flapping)...")
+        analyze_network_link_events(data, result)
+
+        logger.debug("Analisando: conectividade com gateway...")
+        analyze_gateway_connectivity(data, result)
 
         result.summary = _generate_summary(result)
 

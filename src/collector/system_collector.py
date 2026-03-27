@@ -69,6 +69,10 @@ class SystemData:
     # Rede
     network_interfaces: CommandResult = None
     open_ports: CommandResult = None
+    arp_table: CommandResult = None
+    network_stats: CommandResult = None
+    ping_gateway: CommandResult = None
+    dmesg_network: CommandResult = None
 
     # Processos
     top_processes: CommandResult = None
@@ -260,6 +264,27 @@ class SystemCollector:
         data.open_ports = self._run(
             "ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null | head -30",
             "open_ports",
+        )
+        data.arp_table = self._run(
+            "arp -n 2>/dev/null || ip neigh show 2>/dev/null",
+            "arp_table",
+        )
+        data.network_stats = self._run(
+            "ip -s link 2>/dev/null",
+            "network_stats",
+        )
+        # Ping ao gateway padrão (10 pacotes, timeout 1s por pacote)
+        data.ping_gateway = self._run(
+            "gw=$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}'); "
+            "[ -n \"$gw\" ] && ping -c 10 -W 1 \"$gw\" 2>/dev/null "
+            "|| echo 'gateway nao encontrado'",
+            "ping_gateway",
+        )
+        # Eventos de link do kernel (link up/down, carrier lost)
+        data.dmesg_network = self._run(
+            "dmesg -T 2>/dev/null | grep -iE "
+            "'(link is (up|down)|NIC link is|carrier (lost|found)|link failure)' | tail -50",
+            "dmesg_network",
         )
 
         # --- Processos ---
