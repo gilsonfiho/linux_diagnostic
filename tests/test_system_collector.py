@@ -128,3 +128,72 @@ class TestCommandResult:
         data = SystemData()
         d = data.to_dict()
         assert "collection_errors" not in d
+
+
+class TestNetworkCollection:
+    """Verifica coleta dos novos campos de rede: arp_table, network_stats, ping_gateway, dmesg_network."""
+
+    def test_arp_table_is_collected(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert data.arp_table is not None
+        assert isinstance(data.arp_table, CommandResult)
+
+    def test_network_stats_is_collected(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert data.network_stats is not None
+        assert isinstance(data.network_stats, CommandResult)
+
+    def test_ping_gateway_is_collected(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert data.ping_gateway is not None
+        assert isinstance(data.ping_gateway, CommandResult)
+
+    def test_dmesg_network_is_collected(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert data.dmesg_network is not None
+        assert isinstance(data.dmesg_network, CommandResult)
+
+    def test_arp_table_has_expected_content_normal(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert "192.168.1.1" in data.arp_table.stdout
+
+    def test_network_stats_has_eth0_normal(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert "eth0" in data.network_stats.stdout
+
+    def test_ping_gateway_has_packet_stats_normal(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("normal"))
+        data = collector.collect_all()
+        assert "packet loss" in data.ping_gateway.stdout
+
+    def test_critical_arp_has_incomplete(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("critical"))
+        data = collector.collect_all()
+        assert "(incomplete)" in data.arp_table.stdout
+
+    def test_critical_network_stats_has_errors(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("critical"))
+        data = collector.collect_all()
+        # 250 erros no cenário crítico
+        assert "250" in data.network_stats.stdout
+
+    def test_critical_ping_has_packet_loss(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("critical"))
+        data = collector.collect_all()
+        assert "20%" in data.ping_gateway.stdout
+
+    def test_warning_arp_has_incomplete(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("warnings"))
+        data = collector.collect_all()
+        assert "(incomplete)" in data.arp_table.stdout
+
+    def test_warning_dmesg_network_has_link_events(self):
+        collector = SystemCollector(ssh_client=MockSSHClient("warnings"))
+        data = collector.collect_all()
+        assert "Link is Down" in data.dmesg_network.stdout
