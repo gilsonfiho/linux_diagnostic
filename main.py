@@ -24,6 +24,7 @@ from src.collector.system_collector import SystemCollector
 from src.analyzer.diagnostic_analyzer import DiagnosticAnalyzer
 from src.reporter.report_generator import ReportGenerator
 from src.utils.logger import setup_logging
+from src.utils.email_sender import send_pdf_report
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -64,6 +65,11 @@ def parse_arguments() -> argparse.Namespace:
         choices=["markdown", "pdf", "both"],
         default="both",
         help="Formato do relatório (padrão: both)",
+    )
+    out_group.add_argument(
+        "--email",
+        action="store_true",
+        help="Enviar relatório PDF por e-mail após geração (requer .env configurado)",
     )
 
     # Diagnóstico
@@ -174,6 +180,20 @@ def main() -> int:
             logger.info("Arquivos gerados:")
             for f in generated_files:
                 logger.info(f"  - {f}")
+
+            # Envio por e-mail
+            if args.email:
+                pdf_files = [Path(f) for f in generated_files if str(f).endswith(".pdf")]
+                if pdf_files:
+                    logger.info("Enviando relatório PDF por e-mail...")
+                    sent = send_pdf_report(pdf_files[0], args.host)
+                    if not sent:
+                        logger.warning("Falha no envio do e-mail. Verifique o arquivo .env.")
+                else:
+                    logger.warning(
+                        "--email especificado mas nenhum PDF foi gerado. "
+                        "Use --format pdf ou --format both."
+                    )
 
             # Resumo rápido
             from src.analyzer.diagnostic_analyzer import Severity
