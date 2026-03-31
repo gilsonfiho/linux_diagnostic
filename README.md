@@ -12,6 +12,7 @@ Conecta remotamente, coleta dados críticos, analisa e gera relatórios em Markd
 - 🔍 **Análise inteligente** com classificação em `CRITICAL`, `WARNING`, `INFO`
 - 📄 **Relatório em Markdown** detalhado e estruturado
 - 📑 **Relatório em PDF** gerado automaticamente
+- 📧 **Envio automático por e-mail** via Gmail SMTP (configurável via `.env`)
 - 🍓 **Suporte a Raspberry Pi** (vcgencmd, thermal_zones)
 
 ---
@@ -27,6 +28,7 @@ linux-ssh-diagnostics/
 ├── Dockerfile                       # Imagem Docker da aplicação
 ├── docker-compose.yml               # Orquestração para uso via Docker
 ├── .dockerignore                    # Arquivos excluídos do build Docker
+├── .env.example                     # Template de configuração de e-mail
 ├── README.md
 ├── .gitignore
 ├── src/
@@ -38,12 +40,14 @@ linux-ssh-diagnostics/
 │   │   ├── hardware.py              # Analisadores: disco, memória, CPU, temperatura
 │   │   ├── devices.py               # Analisadores: USB, serial, USB-serial
 │   │   ├── logs.py                  # Analisadores: dmesg, journalctl, serviços
+│   │   ├── network.py               # Analisadores: ARP, erros de interface, gateway
 │   │   └── diagnostic_analyzer.py   # Orquestrador — coordena os analisadores
 │   ├── reporter/
 │   │   ├── report_generator.py      # Geração de relatórios
 │   │   └── pdf_renderer.py          # Renderização PDF (fpdf2)
 │   └── utils/
-│       └── logger.py                # Configuração de logging
+│       ├── logger.py                # Configuração de logging
+│       └── email_sender.py          # Envio de PDF por Gmail SMTP
 ├── tests/
 │   ├── conftest.py                  # Configuração global do pytest
 │   ├── mock_ssh_client.py           # Mock SSH (testes sem servidor real)
@@ -169,6 +173,52 @@ python main.py --host 192.168.1.100 --user pi --password pass \
   --output /tmp/meus-relatorios
 ```
 
+### Enviar relatório PDF por e-mail
+
+```bash
+python main.py --host 192.168.1.100 --user pi --password pass --email
+```
+
+> Requer o arquivo `.env` configurado na raiz do projeto (veja a seção [Configuração de E-mail](#-configuração-de-e-mail)).
+
+---
+
+## 📧 Configuração de E-mail
+
+O envio de e-mail usa Gmail SMTP com autenticação via **App Password** (não a senha pessoal da conta).
+
+### 1. Configure o arquivo `.env`
+
+```bash
+cp .env.example .env
+```
+
+Edite `.env` com suas credenciais:
+
+```env
+EMAIL_DEST="destino@example.com"
+GMAIL_USER="sua.conta@gmail.com"
+GMAIL_APP_PASSWORD="xxxx xxxx xxxx xxxx"
+```
+
+> O arquivo `.env` está no `.gitignore` e **nunca será commitado**.
+
+### 2. Gere uma App Password no Gmail
+
+1. Acesse [myaccount.google.com](https://myaccount.google.com)
+2. **Segurança** → **Verificação em duas etapas** (ative se necessário)
+3. **Segurança** → **Senhas de app** → Criar nova
+4. Copie a senha gerada (16 caracteres) para `GMAIL_APP_PASSWORD`
+
+### Uso com Docker (passando o .env)
+
+```bash
+docker run --rm \
+  -v $(pwd)/reports:/app/reports \
+  -v $(pwd)/.env:/app/.env:ro \
+  linux-diag --host 192.168.1.100 --user pi --password pass --email
+```
+
 ---
 
 ## ⚙️ Opções Completas
@@ -192,6 +242,7 @@ Autenticação (obrigatório um):
 Saída:
   --output OUTPUT       Diretório para relatórios (padrão: ./reports)
   --format              markdown | pdf | both (padrão: both)
+  --email               Enviar PDF por e-mail ao finalizar (requer .env)
 
 Diagnóstico:
   --timeout TIMEOUT     Timeout SSH em segundos (padrão: 30)
@@ -280,6 +331,7 @@ data = collector.collect_all()
 - Acesso SSH ao servidor alvo
 - `paramiko` (conexão SSH)
 - `fpdf2` (geração de PDF — opcional, Markdown sempre funciona)
+- `python-dotenv` (carregamento do `.env` para envio de e-mail)
 
 Para desenvolvimento e testes: `pytest`, `pytest-cov` (via `requirements-dev.txt`)
 
@@ -293,6 +345,7 @@ main.py
         └─► SystemCollector   # Executa 20+ comandos diagnósticos
               └─► DiagnosticAnalyzer  # Analisa e classifica problemas
                     └─► ReportGenerator  # Gera Markdown + PDF
+                          └─► EmailSender  # Envia PDF por Gmail (opcional)
 ```
 
 ---
