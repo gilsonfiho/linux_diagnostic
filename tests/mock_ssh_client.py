@@ -85,6 +85,34 @@ MOCK_OUTPUTS = {
     ),
     "lsusb -v": ("(verbose USB info suprimido no mock)", "", 0),
     "usb_errors": ("", "", 0),  # sem erros USB por padrão
+    "arp_table": (
+        "Address          HWtype  HWaddress           Flags Iface\n"
+        "192.168.1.1     ether   aa:bb:cc:dd:ee:ff   C     eth0\n"
+        "192.168.1.10    ether   11:22:33:44:55:66   C     eth0\n",
+        "", 0,
+    ),
+    "network_stats": (
+        "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536\n"
+        "    link/loopback 00:00:00:00:00:00\n"
+        "    RX: bytes  packets  errors  dropped missed  mcast\n"
+        "    1234567    12345    0       0       0       0\n"
+        "    TX: bytes  packets  errors  dropped carrier collsns\n"
+        "    1234567    12345    0       0       0       0\n"
+        "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n"
+        "    link/ether b8:27:eb:xx:xx:xx\n"
+        "    RX: bytes  packets  errors  dropped missed  mcast\n"
+        "    98765432   765432   0       0       0       1234\n"
+        "    TX: bytes  packets  errors  dropped carrier collsns\n"
+        "    43210987   543210   0       0       0       0\n",
+        "", 0,
+    ),
+    "ping_gateway": (
+        "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+        "64 bytes from 192.168.1.1: icmp_seq=1 ttl=64 time=1.23 ms\n"
+        "10 packets transmitted, 10 received, 0% packet loss, time 9003ms\n",
+        "", 0,
+    ),
+    "dmesg_network": ("", "", 0),
     "dmesg": (
         "[Mon Nov 20 14:00:01 2023] Linux version 5.15.0-91-generic\n"
         "[Mon Nov 20 14:00:05 2023] BIOS-provided physical RAM map:\n"
@@ -162,6 +190,8 @@ def _match_command(command: str) -> Tuple[str, str, int]:
         return MOCK_OUTPUTS["lsusb"]
     elif "usb" in cmd and "dmesg" in cmd:
         return MOCK_OUTPUTS["usb_errors"]
+    elif "dmesg" in cmd and ("link is" in cmd or "carrier" in cmd or "nic link" in cmd):
+        return MOCK_OUTPUTS["dmesg_network"]
     elif "dmesg" in cmd:
         return MOCK_OUTPUTS["dmesg"]
     elif "journalctl" in cmd:
@@ -170,6 +200,12 @@ def _match_command(command: str) -> Tuple[str, str, int]:
         return MOCK_OUTPUTS["syslog"]
     elif "ip addr" in cmd or "ifconfig" in cmd:
         return MOCK_OUTPUTS["ip addr"]
+    elif "ip -s" in cmd:
+        return MOCK_OUTPUTS["network_stats"]
+    elif "arp -n" in cmd or "ip neigh" in cmd:
+        return MOCK_OUTPUTS["arp_table"]
+    elif "ping" in cmd:
+        return MOCK_OUTPUTS["ping_gateway"]
     elif "ss -tlnp" in cmd or "netstat" in cmd:
         return MOCK_OUTPUTS["ss -tlnp"]
     elif "ps aux" in cmd:
@@ -268,11 +304,46 @@ class MockSSHClient:
                 "Core 0:        +87.0°C\n",
                 "", 0,
             )
+        elif "dmesg" in cmd and ("link is" in cmd or "carrier" in cmd or "nic link" in cmd):
+            # 3 link downs → CRITICAL (checado ANTES do dmesg geral)
+            return (
+                "[Mon Nov 20 14:01:00 2023] eth0: Link is Down\n"
+                "[Mon Nov 20 14:03:00 2023] eth0: Link is Down\n"
+                "[Mon Nov 20 14:05:00 2023] eth0: Link is Down\n"
+                "[Mon Nov 20 14:05:05 2023] eth0: Link is Up 1000Mbps Full Duplex\n",
+                "", 0,
+            )
         elif "dmesg" in cmd and "usb" not in cmd:
             return (
                 "[Mon Nov 20 14:00:01 2023] kernel panic - not syncing: VFS: Unable to mount root fs\n"
                 "[Mon Nov 20 14:01:05 2023] EXT4-fs error (device sda1): ext4 filesystem error\n"
                 "[Mon Nov 20 14:02:00 2023] Out of memory: Kill process 1234 (apache2) score 900\n",
+                "", 0,
+            )
+        elif "arp -n" in cmd or "ip neigh" in cmd:
+            # 3 entradas incompletas → CRITICAL
+            return (
+                "Address                  HWtype  HWaddress           Flags Iface\n"
+                "192.168.1.10                     (incomplete)                              eth0\n"
+                "192.168.1.20                     (incomplete)                              eth0\n"
+                "192.168.1.30                     (incomplete)                              eth0\n",
+                "", 0,
+            )
+        elif "ip -s" in cmd:
+            # 250 erros RX → CRITICAL
+            return (
+                "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n"
+                "    link/ether b8:27:eb:xx:xx:xx\n"
+                "    RX: bytes  packets  errors  dropped missed  mcast\n"
+                "    98765432   765432   250     80      0       0\n"
+                "    TX: bytes  packets  errors  dropped carrier collsns\n"
+                "    43210987   543210   0       0       0       0\n",
+                "", 0,
+            )
+        elif "ping" in cmd:
+            return (
+                "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+                "10 packets transmitted, 8 received, 20% packet loss, time 9003ms\n",
                 "", 0,
             )
         return _match_command(command)
@@ -310,4 +381,39 @@ class MockSSHClient:
                 for i in range(8)
             )
             return (disconnects, "", 0)
+        elif "dmesg" in cmd and ("link is" in cmd or "carrier" in cmd or "nic link" in cmd):
+            # 2 link downs → WARNING
+            return (
+                "[Mon Nov 20 14:01:00 2023] eth0: Link is Down\n"
+                "[Mon Nov 20 14:01:05 2023] eth0: Link is Up 1000Mbps Full Duplex\n"
+                "[Mon Nov 20 14:03:00 2023] eth0: Link is Down\n"
+                "[Mon Nov 20 14:03:05 2023] eth0: Link is Up 1000Mbps Full Duplex\n",
+                "", 0,
+            )
+        elif "arp -n" in cmd or "ip neigh" in cmd:
+            # 2 entradas incompletas → WARNING
+            return (
+                "Address                  HWtype  HWaddress           Flags Iface\n"
+                "192.168.1.1     ether   aa:bb:cc:dd:ee:ff   C     eth0\n"
+                "192.168.1.10                     (incomplete)                              eth0\n"
+                "192.168.1.20                     (incomplete)                              eth0\n",
+                "", 0,
+            )
+        elif "ip -s" in cmd:
+            # 30 erros RX → WARNING
+            return (
+                "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n"
+                "    link/ether b8:27:eb:xx:xx:xx\n"
+                "    RX: bytes  packets  errors  dropped missed  mcast\n"
+                "    98765432   765432   30      200     0       0\n"
+                "    TX: bytes  packets  errors  dropped carrier collsns\n"
+                "    43210987   543210   0       0       0       0\n",
+                "", 0,
+            )
+        elif "ping" in cmd:
+            return (
+                "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+                "10 packets transmitted, 9 received, 10% packet loss, time 9003ms\n",
+                "", 0,
+            )
         return _match_command(command)

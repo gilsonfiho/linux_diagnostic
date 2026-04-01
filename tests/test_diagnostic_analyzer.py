@@ -657,3 +657,297 @@ class TestUsbSerialAnalysis:
         usb_serial_issues = [
             i for i in result.issues if i.category == "Serial USB"]
         assert usb_serial_issues == []
+
+
+class TestNetworkArpAnalysis:
+    """Testes para analyze_arp: entradas (incomplete) indicam dispositivos inacessíveis."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return DiagnosticAnalyzer()
+
+    def _make_arp(self, output: str) -> "SystemData":
+        data = make_empty_data()
+        data.arp_table = make_result(output)
+        return data
+
+    def test_clean_arp_table_returns_no_issues(self, analyzer):
+        data = self._make_arp(
+            "Address          HWtype  HWaddress           Flags Iface\n"
+            "192.168.1.1     ether   aa:bb:cc:dd:ee:ff   C     eth0\n"
+            "192.168.1.10    ether   11:22:33:44:55:66   C     eth0\n"
+        )
+        result = analyzer.analyze(data)
+        arp_issues = [i for i in result.issues if "ARP" in i.title]
+        assert arp_issues == []
+
+    def test_one_incomplete_is_warning(self, analyzer):
+        data = self._make_arp(
+            "192.168.1.10                     (incomplete)                              eth0\n"
+        )
+        result = analyzer.analyze(data)
+        arp_issues = [i for i in result.issues if "ARP" in i.title]
+        assert len(arp_issues) == 1
+        assert arp_issues[0].severity == Severity.WARNING
+
+    def test_two_incomplete_is_warning(self, analyzer):
+        data = self._make_arp(
+            "192.168.1.10                     (incomplete)                              eth0\n"
+            "192.168.1.20                     (incomplete)                              eth0\n"
+        )
+        result = analyzer.analyze(data)
+        arp_issues = [i for i in result.issues if "ARP" in i.title]
+        assert arp_issues[0].severity == Severity.WARNING
+
+    def test_three_incomplete_is_critical(self, analyzer):
+        data = self._make_arp(
+            "192.168.1.10                     (incomplete)                              eth0\n"
+            "192.168.1.20                     (incomplete)                              eth0\n"
+            "192.168.1.30                     (incomplete)                              eth0\n"
+        )
+        result = analyzer.analyze(data)
+        arp_issues = [i for i in result.issues if "ARP" in i.title]
+        assert len(arp_issues) == 1
+        assert arp_issues[0].severity == Severity.CRITICAL
+
+    def test_ip_addresses_in_description(self, analyzer):
+        data = self._make_arp(
+            "192.168.1.10                     (incomplete)                              eth0\n"
+        )
+        result = analyzer.analyze(data)
+        arp_issues = [i for i in result.issues if "ARP" in i.title]
+        assert "192.168.1.10" in arp_issues[0].description
+
+    def test_count_shown_in_title(self, analyzer):
+        data = self._make_arp(
+            "192.168.1.10                     (incomplete)                              eth0\n"
+            "192.168.1.20                     (incomplete)                              eth0\n"
+        )
+        result = analyzer.analyze(data)
+        arp_issues = [i for i in result.issues if "ARP" in i.title]
+        assert "2" in arp_issues[0].title
+
+    def test_empty_arp_output_no_crash(self, analyzer):
+        data = self._make_arp("")
+        result = analyzer.analyze(data)
+        assert isinstance(result, DiagnosticResult)
+
+    def test_no_arp_data_no_crash(self, analyzer):
+        data = make_empty_data()
+        result = analyzer.analyze(data)
+        assert isinstance(result, DiagnosticResult)
+
+
+class TestNetworkInterfaceErrors:
+    """Testes para analyze_network_interface_errors: erros e drops em 'ip -s link'."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return DiagnosticAnalyzer()
+
+    def _make_netstats(self, output: str) -> "SystemData":
+        data = make_empty_data()
+        data.network_stats = make_result(output)
+        return data
+
+    def _clean_stats(self, iface: str = "eth0", rx_errors: int = 0,
+                     rx_dropped: int = 0) -> str:
+        return (
+            f"2: {iface}: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n"
+            "    link/ether b8:27:eb:00:00:00\n"
+            "    RX: bytes  packets  errors  dropped missed  mcast\n"
+            f"    98765432   765432   {rx_errors}  {rx_dropped}  0  0\n"
+            "    TX: bytes  packets  errors  dropped carrier collsns\n"
+            "    43210987   543210   0       0       0       0\n"
+        )
+
+    def test_clean_interface_no_issues(self, analyzer):
+        data = self._make_netstats(self._clean_stats())
+        result = analyzer.analyze(data)
+        err_issues = [i for i in result.issues if "Erros" in i.title]
+        assert err_issues == []
+
+    def test_rx_errors_below_100_is_warning(self, analyzer):
+        data = self._make_netstats(self._clean_stats(rx_errors=30))
+        result = analyzer.analyze(data)
+        err_issues = [i for i in result.issues if "Erros" in i.title]
+        assert len(err_issues) == 1
+        assert err_issues[0].severity == Severity.WARNING
+
+    def test_rx_errors_100_is_critical(self, analyzer):
+        data = self._make_netstats(self._clean_stats(rx_errors=100))
+        result = analyzer.analyze(data)
+        err_issues = [i for i in result.issues if "Erros" in i.title]
+        assert err_issues[0].severity == Severity.CRITICAL
+
+    def test_rx_errors_250_is_critical(self, analyzer):
+        data = self._make_netstats(self._clean_stats(rx_errors=250))
+        result = analyzer.analyze(data)
+        err_issues = [i for i in result.issues if "Erros" in i.title]
+        assert err_issues[0].severity == Severity.CRITICAL
+
+    def test_rx_dropped_50_is_warning(self, analyzer):
+        data = self._make_netstats(self._clean_stats(rx_dropped=50))
+        result = analyzer.analyze(data)
+        drop_issues = [i for i in result.issues if "Drops" in i.title]
+        assert len(drop_issues) == 1
+        assert drop_issues[0].severity == Severity.WARNING
+
+    def test_rx_dropped_below_50_no_issue(self, analyzer):
+        data = self._make_netstats(self._clean_stats(rx_dropped=49))
+        result = analyzer.analyze(data)
+        drop_issues = [i for i in result.issues if "Drops" in i.title]
+        assert drop_issues == []
+
+    def test_interface_name_in_title(self, analyzer):
+        data = self._make_netstats(self._clean_stats(iface="wlan0", rx_errors=5))
+        result = analyzer.analyze(data)
+        err_issues = [i for i in result.issues if "Erros" in i.title]
+        assert "wlan0" in err_issues[0].title
+
+    def test_empty_stats_no_crash(self, analyzer):
+        data = self._make_netstats("")
+        result = analyzer.analyze(data)
+        assert isinstance(result, DiagnosticResult)
+
+
+class TestNetworkLinkEvents:
+    """Testes para analyze_network_link_events: link flapping no dmesg filtrado."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return DiagnosticAnalyzer()
+
+    def _make_dmesg_net(self, lines: list) -> "SystemData":
+        data = make_empty_data()
+        data.dmesg_network = make_result("\n".join(lines))
+        return data
+
+    def test_no_link_events_returns_nothing(self, analyzer):
+        data = self._make_dmesg_net(["[Mon Nov 20 14:00:01 2023] Normal log message"])
+        result = analyzer.analyze(data)
+        link_issues = [i for i in result.issues if "Quedas" in i.title]
+        assert link_issues == []
+
+    def test_one_link_down_is_warning(self, analyzer):
+        data = self._make_dmesg_net([
+            "[Mon Nov 20 14:01:00 2023] eth0: Link is Down",
+            "[Mon Nov 20 14:01:05 2023] eth0: Link is Up 1000Mbps Full Duplex",
+        ])
+        result = analyzer.analyze(data)
+        link_issues = [i for i in result.issues if "Quedas" in i.title]
+        assert len(link_issues) == 1
+        assert link_issues[0].severity == Severity.WARNING
+
+    def test_two_link_downs_is_warning(self, analyzer):
+        data = self._make_dmesg_net([
+            "[Mon Nov 20 14:01:00 2023] eth0: Link is Down",
+            "[Mon Nov 20 14:03:00 2023] eth0: Link is Down",
+        ])
+        result = analyzer.analyze(data)
+        link_issues = [i for i in result.issues if "Quedas" in i.title]
+        assert link_issues[0].severity == Severity.WARNING
+
+    def test_three_link_downs_is_critical(self, analyzer):
+        data = self._make_dmesg_net([
+            "[Mon Nov 20 14:01:00 2023] eth0: Link is Down",
+            "[Mon Nov 20 14:03:00 2023] eth0: Link is Down",
+            "[Mon Nov 20 14:05:00 2023] eth0: Link is Down",
+        ])
+        result = analyzer.analyze(data)
+        link_issues = [i for i in result.issues if "Quedas" in i.title]
+        assert link_issues[0].severity == Severity.CRITICAL
+
+    def test_carrier_lost_is_detected(self, analyzer):
+        data = self._make_dmesg_net([
+            "[Mon Nov 20 14:01:00 2023] eth0: carrier lost",
+        ])
+        result = analyzer.analyze(data)
+        link_issues = [i for i in result.issues if "Quedas" in i.title]
+        assert len(link_issues) == 1
+
+    def test_count_in_title(self, analyzer):
+        data = self._make_dmesg_net([
+            "[Mon Nov 20 14:01:00 2023] eth0: Link is Down",
+            "[Mon Nov 20 14:03:00 2023] eth0: Link is Down",
+        ])
+        result = analyzer.analyze(data)
+        link_issues = [i for i in result.issues if "Quedas" in i.title]
+        assert "2" in link_issues[0].title
+
+    def test_empty_dmesg_network_no_crash(self, analyzer):
+        data = self._make_dmesg_net([])
+        result = analyzer.analyze(data)
+        assert isinstance(result, DiagnosticResult)
+
+
+class TestGatewayConnectivity:
+    """Testes para analyze_gateway_connectivity: perda de pacotes ao gateway."""
+
+    @pytest.fixture
+    def analyzer(self):
+        return DiagnosticAnalyzer()
+
+    def _make_ping(self, output: str) -> "SystemData":
+        data = make_empty_data()
+        data.ping_gateway = make_result(output)
+        return data
+
+    def test_zero_loss_returns_no_issue(self, analyzer):
+        data = self._make_ping(
+            "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+            "10 packets transmitted, 10 received, 0% packet loss, time 9003ms\n"
+        )
+        result = analyzer.analyze(data)
+        gw_issues = [i for i in result.issues if "Perda" in i.title or
+                     "gateway" in i.title.lower()]
+        assert gw_issues == []
+
+    def test_10_percent_loss_is_warning(self, analyzer):
+        data = self._make_ping(
+            "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+            "10 packets transmitted, 9 received, 10% packet loss, time 9003ms\n"
+        )
+        result = analyzer.analyze(data)
+        gw_issues = [i for i in result.issues if "Perda" in i.title]
+        assert len(gw_issues) == 1
+        assert gw_issues[0].severity == Severity.WARNING
+
+    def test_above_10_percent_is_critical(self, analyzer):
+        data = self._make_ping(
+            "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+            "10 packets transmitted, 8 received, 20% packet loss, time 9003ms\n"
+        )
+        result = analyzer.analyze(data)
+        gw_issues = [i for i in result.issues if "Perda" in i.title]
+        assert gw_issues[0].severity == Severity.CRITICAL
+
+    def test_100_percent_loss_is_critical(self, analyzer):
+        data = self._make_ping(
+            "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+            "10 packets transmitted, 0 received, 100% packet loss, time 9003ms\n"
+        )
+        result = analyzer.analyze(data)
+        gw_issues = [i for i in result.issues if "Perda" in i.title]
+        assert gw_issues[0].severity == Severity.CRITICAL
+
+    def test_gateway_not_found_is_warning(self, analyzer):
+        data = self._make_ping("gateway nao encontrado")
+        result = analyzer.analyze(data)
+        gw_issues = [i for i in result.issues if "gateway" in i.title.lower()]
+        assert len(gw_issues) == 1
+        assert gw_issues[0].severity == Severity.WARNING
+
+    def test_gateway_ip_in_title(self, analyzer):
+        data = self._make_ping(
+            "PING 192.168.1.1 (192.168.1.1) 56(84) bytes of data.\n"
+            "10 packets transmitted, 8 received, 20% packet loss, time 9003ms\n"
+        )
+        result = analyzer.analyze(data)
+        gw_issues = [i for i in result.issues if "Perda" in i.title]
+        assert "192.168.1.1" in gw_issues[0].title
+
+    def test_no_ping_data_no_crash(self, analyzer):
+        data = make_empty_data()
+        result = analyzer.analyze(data)
+        assert isinstance(result, DiagnosticResult)

@@ -11,6 +11,9 @@ fpdf2>=2.7.9
 # Tipagem (Python 3.9 compatibility)
 typing_extensions>=4.0.0
 
+# Variáveis de ambiente (.env)
+python-dotenv>=1.0.0
+
 # Desenvolvimento / Testes
 pytest>=7.4.0
 pytest-cov>=4.1.0
