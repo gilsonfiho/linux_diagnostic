@@ -266,7 +266,7 @@ def analyze_temperature(data: SystemData, result: DiagnosticResult) -> None:
     - sensors (lm-sensors) → formato: "Adapter: ..., value: 42.0°C (high = 100.0°C)"
     - vcgencmd (Raspberry Pi) → formato: "temp=45.0'C"
     - /sys/class/thermal → formato: "thermal_zone0: 45.0°C" ou "thermal_zone1: 48.5°C"
-    
+
     Normaliza formatos e encontra a temperatura máxima para análise.
     """
     temps_found = []
@@ -295,7 +295,7 @@ def analyze_temperature(data: SystemData, result: DiagnosticResult) -> None:
             # - "temp=45.0'C" (vcgencmd)
             # - "thermal_zone0: 45.0°C" (sysfs normalizado)
             # - "thermal_zone1: 48.5°C" (múltiplas zones)
-            
+
             # Procura: número(com ou sem decimal) + C/apostrofo
             matches = re.findall(r"(\d+\.?\d*)°?[C']", line)
             for match in matches:
