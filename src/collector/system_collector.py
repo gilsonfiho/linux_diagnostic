@@ -204,22 +204,29 @@ class SystemCollector:
         data.sensors = self._run(
             "sensors 2>/dev/null || echo 'sensors não disponível'", "sensors")
 
+        # Coleta de temperatura via múltiplas fontes (prioridade: sensors > vcgencmd > sysfs)
+        # Formato normalizado de saída: "zone_name: XX.X°C"
         if self.is_raspberry_pi:
-            # vcgencmd: ferramenta nativa do Raspberry Pi
-            data.vcgencmd_temp = self._run(
-                "vcgencmd measure_temp 2>/dev/null || cat /sys/class/thermal/thermal_zone0/temp",
-                "vcgencmd_temp",
+            # Raspberry Pi: vcgencmd (nativo) com fallback para /sys/class/thermal
+            # vcgencmd measure_temp → "temp=45.0'C"
+            # /sys/class/thermal/thermal_zone0/temp → 45000 (milicélsius)
+            temp_cmd = (
+                "( vcgencmd measure_temp 2>/dev/null || "
+                "( [ -f /sys/class/thermal/thermal_zone0/temp ] && "
+                "awk '{printf \"thermal_zone0: %.1f°C\\n\", $1/1000}' /sys/class/thermal/thermal_zone0/temp ) || "
+                "echo 'temperature not available' )"
             )
+            data.vcgencmd_temp = self._run(temp_cmd, "vcgencmd_temp")
         else:
-            # Temperatura via sysfs (disponível na maioria dos sistemas)
-            data.vcgencmd_temp = self._run(
-                "for f in /sys/class/thermal/thermal_zone*/temp; do "
-                "zone=$(dirname $f | xargs basename); "
-                "temp=$(cat $f 2>/dev/null); "
-                "[ -n \"$temp\" ] && echo \"$zone: $(echo \"scale=1; $temp/1000\" | bc)°C\"; "
-                "done 2>/dev/null || echo 'thermal_zone não disponível'",
-                "thermal_zones",
+            # x86_64 e arquiteturas com múltiplas thermal_zones
+            # Lê todos os /sys/class/thermal/thermal_zone*/temp e normaliza o formato
+            temp_cmd = (
+                "( for f in /sys/class/thermal/thermal_zone*/temp 2>/dev/null; do "
+                "zone=$(basename $(dirname $f)); "
+                "awk -v z=\"$zone\" '{printf \"%s: %.1f°C\\n\", z, $1/1000}' $f; "
+                "done ) || echo 'temperature not available'"
             )
+            data.vcgencmd_temp = self._run(temp_cmd, "vcgencmd_temp")
 
         # --- USB ---
         logger.debug("  Coletando informações USB")
