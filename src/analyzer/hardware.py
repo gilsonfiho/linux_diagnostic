@@ -261,52 +261,74 @@ def analyze_cpu_load(data: SystemData, result: DiagnosticResult) -> None:
 
 
 def analyze_temperature(data: SystemData, result: DiagnosticResult) -> None:
-    """Analisa temperatura do sistema via sensors e thermal_zones."""
+    """
+    Analisa temperatura do sistema via múltiplas fontes:
+    - sensors (lm-sensors) → formato: "Adapter: ..., value: 42.0°C (high = 100.0°C)"
+    - vcgencmd (Raspberry Pi) → formato: "temp=45.0'C"
+    - /sys/class/thermal → formato: "thermal_zone0: 45.0°C" ou "thermal_zone1: 48.5°C"
+    
+    Normaliza formatos e encontra a temperatura máxima para análise.
+    """
     temps_found = []
 
-    # Verifica saída de sensors (lm-sensors)
+    # 1. Extrai de sensors (lm-sensors)
     if _has_output(data.sensors):
         for line in data.sensors.stdout.splitlines():
-            # Remove anotações de threshold entre parênteses antes de extrair temperatura
+            # Remove anotações entre parênteses antes de extrair temperatura
             # Ex: "+42.0°C  (high = +100.0°C, crit = +100.0°C)" → "+42.0°C"
             line_clean = re.sub(r"\(.*?\)", "", line)
-            matches = re.findall(r"([+-]?\d+\.\d+)°?C", line_clean)
+            # Procura padrão: [+-]número.número°C
+            matches = re.findall(r"([+-]?\d+\.?\d*)°?C", line_clean)
             for match in matches:
                 try:
                     temp = float(match)
-                    if 0 < temp < 150:  # faixa razoável
-                        temps_found.append((line.strip(), temp))
+                    if 0 < temp < 150:  # faixa razoável (0-150°C)
+                        temps_found.append((line.strip()[:100], temp))
                 except ValueError:
                     pass
 
-    # Verifica thermal_zones via sysfs
+    # 2. Extrai de vcgencmd (Raspberry Pi) e /sys/class/thermal
     if _has_output(data.vcgencmd_temp):
         text = data.vcgencmd_temp.stdout
-        # Formato: "thermal_zone0: 45.0°C" ou "temp=45.0'C"
-        matches = re.findall(r"(\d+\.?\d*)°?[C']", text)
-        for match in matches:
-            try:
-                temp = float(match)
-                if 0 < temp < 150:
-                    temps_found.append((text.strip()[:80], temp))
-            except ValueError:
-                pass
+        for line in text.splitlines():
+            # Suporta múltiplos formatos:
+            # - "temp=45.0'C" (vcgencmd)
+            # - "thermal_zone0: 45.0°C" (sysfs normalizado)
+            # - "thermal_zone1: 48.5°C" (múltiplas zones)
+            
+            # Procura: número(com ou sem decimal) + C/apostrofo
+            matches = re.findall(r"(\d+\.?\d*)°?[C']", line)
+            for match in matches:
+                try:
+                    temp = float(match)
+                    if 0 < temp < 150:
+                        temps_found.append((line.strip()[:100], temp))
+                except ValueError:
+                    pass
 
     if not temps_found:
         result.issues.append(Issue(
             severity=Severity.INFO,
             category="Temperatura",
             title="Dados de temperatura não disponíveis",
-            description="lm-sensors não instalado ou sem sensores detectados.",
+            description=(
+                "Nenhuma fonte de temperatura detectada. "
+                "lm-sensors não instalado ou /sys/class/thermal não acessível."
+            ),
             recommendation=(
-                "Instale lm-sensors: 'sudo apt install lm-sensors && sudo sensors-detect'"
+                "Para diagnóstico de temperatura:\n"
+                "  • x86_64: sudo apt install lm-sensors && sudo sensors-detect\n"
+                "  • Raspberry Pi: confirme /sys/class/thermal/thermal_zone0/temp\n"
+                "  • Verifique permissões de leitura do usuário SSH"
             ),
         ))
         return
 
+    # Encontra a temperatura máxima
     max_temp = max(t for _, t in temps_found)
     max_evidence = next(line for line, t in temps_found if t == max_temp)
 
+    # Classifica por severidade
     if max_temp >= TEMP_CRITICAL_C:
         result.issues.append(Issue(
             severity=Severity.CRITICAL,
@@ -315,12 +337,16 @@ def analyze_temperature(data: SystemData, result: DiagnosticResult) -> None:
             description=(
                 f"Temperatura máxima detectada: {max_temp:.1f}°C. "
                 f"Threshold crítico: {TEMP_CRITICAL_C}°C. "
-                "Risco de throttling ou dano por superaquecimento."
+                "Sistema em risco de throttling automático ou dano por superaquecimento."
             ),
             recommendation=(
-                "Verifique ventilação e dissipação de calor imediatamente. "
-                "Limpe poeira dos coolers. Verifique se o thermal paste está adequado. "
-                "Reduza carga do sistema se possível."
+                "AÇÃO IMEDIATA:\n"
+                "  1. Verifique ventilação e fluxo de ar do cooler\n"
+                "  2. Limpe poeira dos dissipadores de calor\n"
+                "  3. Verifique aplicação de thermal paste (pode estar seca ou mal aplicada)\n"
+                "  4. Reduza carga de trabalho ou desligue aplicações não-essenciais\n"
+                "  5. Monitore throttling com: cat /proc/cpuinfo | grep MHz\n"
+                "  6. Se problema persistir, considere upgrade de cooling ou reduzir clock"
             ),
             raw_evidence=max_evidence,
         ))
@@ -331,10 +357,16 @@ def analyze_temperature(data: SystemData, result: DiagnosticResult) -> None:
             title=f"Temperatura elevada: {max_temp:.1f}°C",
             description=(
                 f"Temperatura máxima: {max_temp:.1f}°C. "
-                f"Threshold de alerta: {TEMP_WARNING_C}°C."
+                f"Acima do threshold de alerta ({TEMP_WARNING_C}°C). "
+                "Monitoramento recomendado."
             ),
             recommendation=(
-                "Monitore a temperatura. Verifique ventilação e cargas de trabalho."
+                "Ações preventivas:\n"
+                "  • Monitore tendência de temperatura nos próximos minutos\n"
+                "  • Verifique carga do sistema (ps aux, top)\n"
+                "  • Verifique se há processos consumindo muita CPU\n"
+                "  • Inspect cooling system (limpeza de pó, termal paste)\n"
+                f"  • Alerta crítico será acionado em {TEMP_CRITICAL_C}°C"
             ),
             raw_evidence=max_evidence,
         ))
@@ -343,6 +375,10 @@ def analyze_temperature(data: SystemData, result: DiagnosticResult) -> None:
             severity=Severity.INFO,
             category="Temperatura",
             title=f"Temperatura normal: {max_temp:.1f}°C",
-            description=f"Temperatura máxima: {max_temp:.1f}°C — dentro do limite seguro.",
-            recommendation="Sem ação necessária.",
+            description=(
+                f"Temperatura máxima: {max_temp:.1f}°C — dentro da faixa normal "
+                f"(limite: {TEMP_CRITICAL_C}°C, alerta: {TEMP_WARNING_C}°C)."
+            ),
+            recommendation="Sem ação necessária. Sistema operando normalmente.",
+            raw_evidence=max_evidence,
         ))
